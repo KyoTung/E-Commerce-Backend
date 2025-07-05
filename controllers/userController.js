@@ -1,5 +1,8 @@
+
 const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler")
+const {generatelToken} = require("../config/jwtToken")
+
 const createUser = asyncHandler(
     async (req, res) => {
         try {
@@ -25,4 +28,27 @@ const createUser = asyncHandler(
         }
       });
 
-module.exports = { createUser };
+const loginUserController = asyncHandler(async(req, res) =>{
+    const {email, password} = req.body
+    const findUser = await User.findOne({ email: email });
+
+    if(findUser){
+      res.json({
+        _id: findUser?._id,
+        fullName: findUser?.$assertPopulated,
+        email: findUser?.$assertPopulated,
+        address: findUser?.address,
+        phone: findUser?.phone,
+        token: generatelToken(findUser?._id)
+      });
+    } else {
+        throw new Element("Invalid Crendentials!")
+    }
+});
+
+
+
+
+
+
+module.exports = { createUser, loginUserController };
