@@ -3,13 +3,12 @@ const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler")
 const {generatelToken} = require("../config/jwtToken")
 
+// Create a new user
 const createUser = asyncHandler(
     async (req, res) => {
-        try {
           const email = req.body.email;
           const findUser = await User.findOne({ email: email });
           if (!findUser) {
-            // Create a new user
             const newUser = await User.create(req.body);
             res.json({
               msg: "User created successfully",
@@ -19,36 +18,129 @@ const createUser = asyncHandler(
           } else {
             throw new Error("User already exists");
           }
-        } catch (error) {
-          res.status(500).json({
-            msg: "Server error",
-            error: error.message,
-            success: false,
-          });
-        }
       });
 
+      // login
 const loginUserController = asyncHandler(async(req, res) =>{
     const {email, password} = req.body
     const findUser = await User.findOne({ email: email });
 
-    if(findUser){
+      if (findUser) {
+        res.json({
+          _id: findUser?._id,
+          fullName: findUser?.$assertPopulated,
+          email: findUser?.$assertPopulated,
+          address: findUser?.address,
+          phone: findUser?.phone,
+          token: generatelToken(findUser?._id),
+        });
+      } else {
+        throw new Element("Invalid Crendentials!");
+      }
+});
+
+// get all users
+const getAllUsers = asyncHandler(async(req, res) => {
+    try{
+        const allUsers = await User.find()
+        res.json(allUsers)
+    } 
+    catch (error){
+        throw new Error(error)
+    }
+})
+
+// get a single user
+const getUser = asyncHandler(async(req, res) => {
+    const {id} = req.params;
+    try {
+      const user = await User.findById(id);
+      res.json(user);
+    } catch (error) {
+      throw new Error(error);
+    }
+})
+
+// delete a user
+const deleteUser = asyncHandler(async(req, res) => {
+    const {id} = req.params;
+    try {
+      const deleteUser = await User.findByIdAndDelete(id);
       res.json({
-        _id: findUser?._id,
-        fullName: findUser?.$assertPopulated,
-        email: findUser?.$assertPopulated,
-        address: findUser?.address,
-        phone: findUser?.phone,
-        token: generatelToken(findUser?._id)
+        message: "User deleted successfully",
+        success: true
       });
-    } else {
-        throw new Element("Invalid Crendentials!")
+    } catch (error) {
+      throw new Error(error);
+    }
+})
+
+//update a user
+const updateUser = asyncHandler(async (req, res) => {
+  const { id } = req.user;
+  try {
+    const updateUser = await User.findByIdAndUpdate(
+      id,
+      {
+        fullName: req?.body?.fullName,
+        email: req?.body?.email,
+        address: req?.body?.address,
+        phone: req?.body?.phone,
+      },
+      {
+        new: true,
+      }
+    );
+    res.json({
+      message: "User updated successfully",
+      success: true,
+      user:updateUser
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const blockUser = asyncHandler(async(req, res)=>{
+   const {id} = req.params;
+   try{
+      const block = await User.findByIdAndUpdate(id,
+        {isBlock:true},
+        {new:true})
+        res.json({
+            message:"user blocked successfully!"
+        })
+   } catch (error){
+        throw new Error(error)
+   }
+})
+
+const unlockUser = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    try {
+      const unlock = await User.findByIdAndUpdate(
+        id,
+        { isBlock: false },
+        { new: true }
+      );
+      res.json({
+        message: "user unlocked successfully!",
+      });
+    } catch (error) {
+      throw new Error(error);
     }
 });
 
 
 
 
-
-
-module.exports = { createUser, loginUserController };
+module.exports = {
+  createUser,
+  loginUserController,
+  getAllUsers,
+  getUser,
+  deleteUser,
+  updateUser,
+  blockUser, 
+  unlockUser,
+};

@@ -1,31 +1,44 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt")
 
-var userSchema = new mongoose.Schema({
-  fullName: {
-    type: String,
-    required: true,
+var userSchema = new mongoose.Schema(
+  {
+    fullName: {
+      type: String,
+      required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    phone: {
+      type: String,
+      unique: true,
+    },
+    role: {
+      type: String,
+      default: "user",
+    },
+    isBlock:{
+      type:Boolean,
+      default:false,
+    },
+    cart: {
+      type: Array,
+      default: [],
+    },
+    address: [{ type: mongoose.Schema.Types.ObjectId, ref: "Address" }],
+    wishList: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
   },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-  address: {
-    type: String,
-  },
-  phone: {
-    type: String,
-  },
-  role: {
-    type: String,
-    default:"user"
-  },
-});
+  {
+    timestamps: true,
+  }
+);
 
 userSchema.pre('save', async function(next){
    const salt = await bcrypt.genSaltSync(10)
