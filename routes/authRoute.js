@@ -11,17 +11,21 @@ const {
   updateUser,
   blockUser,
   unlockUser,
-} = require("../controllers/userController");
+  handleRefreshToken,
+  logout,
+} = require("../controller/userController");
 
 router.post("/register", createUser);
 router.get("/login", loginUserController);
 router.get("/all-users", getAllUsers);
+router.get("/refresh", handleRefreshToken);
+router.get("/logout", logout);
+
 router.get("/:id",authMiddleware,isAdmin,getUser);
 router.delete("/:id", deleteUser);
 router.put("/update-user",authMiddleware,isAdmin, updateUser);
 router.put("/block-user/:id", authMiddleware, blockUser);
 router.put("/unlock-user/:id", authMiddleware, unlockUser);
-
 
 
 
