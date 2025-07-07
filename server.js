@@ -8,7 +8,6 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 const connectDB = require("./config/connectDB");
-const authRouter = require("./routes/authRoute");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
 
 // Middleware
