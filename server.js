@@ -8,7 +8,9 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 const connectDB = require("./config/connectDB");
+const authRouter = require("./routes/authRoute");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
+const productRouter = require("./routes/productRoute")
 
 // Middleware
 app.use(cors());
@@ -20,6 +22,7 @@ connectDB();
 
 // Routes
 app.use("/api/user", authRouter);
+app.use("/api/product", productRouter)
 
 app.use(notFound);
 app.use(errorHandler);
