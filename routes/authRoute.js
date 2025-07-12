@@ -15,15 +15,19 @@ const {
   logout,
 } = require("../controller/userController");
 
+// Auth 
 router.post("/register", createUser);
 router.get("/login", loginUserController);
-router.get("/all-users", getAllUsers);
 router.get("/refresh", handleRefreshToken);
 router.get("/logout", logout);
 
+// User actions
+router.get("/all-users", getAllUsers);
 router.get("/:id",authMiddleware,isAdmin,getUser);
 router.delete("/:id", deleteUser);
 router.put("/update-user",authMiddleware,isAdmin, updateUser);
+
+// Admin actions
 router.put("/block-user/:id", authMiddleware, blockUser);
 router.put("/unlock-user/:id", authMiddleware, unlockUser);
 
