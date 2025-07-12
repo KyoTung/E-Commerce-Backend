@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
 const cookieParser = require("cookie-parser");
+const morgan = require("morgan")
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -13,6 +14,7 @@ const { notFound, errorHandler } = require("./middleware/errorHandler");
 const productRouter = require("./routes/productRoute")
 
 // Middleware
+app.use(morgan("dev"))
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
