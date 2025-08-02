@@ -83,7 +83,6 @@ const getAllProduct = asyncHandler(async (req, res) => {
   }
 });
 
-
 const updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
   try {
