@@ -16,7 +16,7 @@ const createUser = asyncHandler(async (req, res) => {
   if (!findUser) {
     const newUser = await User.create(req.body);
     res.json({
-      msg: "User created successfully",
+      message: "User created successfully",
       success: true,
       user: newUser,
     });
