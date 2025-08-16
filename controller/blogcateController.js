@@ -4,10 +4,10 @@ const validateMongoDbId = require("../utils/validateMongoDB");
 
 const createBlogcategory = asyncHandler(async (req, res) => {
   try {
-    const bcategory = await BlogCategory.create(req.body);
+    const blogCategory = await BlogCategory.create(req.body);
     res.json({
       message: "BlogCategory created successfully",
-      bcategory,
+      blogCategory,
     });
   } catch (error) {
     throw new Error(error);
@@ -38,8 +38,8 @@ const getBlogCategory = asyncHandler(async(req, res) =>{
     const {id} = req.params;
     validateMongoDbId(id);
     try{
-      const blogcate = await BlogCategory.findById(id);
-      res.json(blogcate)
+      const blogCate = await BlogCategory.findById(id);
+      res.json(blogCate)
     } catch (error) {
     throw new Error(error);
   }
@@ -49,10 +49,10 @@ const deleteBlogCategory = asyncHandler(async(req, res) =>{
     const {id} = req.params;
     validateMongoDbId(id);
     try{
-      const blogcate = await BlogCategory.findByIdAndDelete(id);
+      const blogCate = await BlogCategory.findByIdAndDelete(id);
       res.json({
         message: "Blogcategory deleted successfully",
-        blogcate
+        blogCate
       })
     } catch (error) {
     throw new Error(error);
