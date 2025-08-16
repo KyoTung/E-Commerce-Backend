@@ -13,6 +13,9 @@ const authRouter = require("./routes/authRoute");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
 const productRouter = require("./routes/productRoute")
 const blogRouter = require("./routes/blogRoute")
+const categoryRoute = require("./routes/categoryRoute")
+const brandRoute = require("./routes/brandRoute")
+const blogcateRoute = require("./routes/blogcateRoute")
 
 // Middleware
 app.use(morgan("dev"))
@@ -25,8 +28,11 @@ connectDB();
 
 // Routes
 app.use("/api/user", authRouter);
-app.use("/api/product", productRouter)
-app.use("/api/blog",blogRouter )
+app.use("/api/product", productRouter);
+app.use("/api/blog",blogRouter );
+app.use("/api/category", categoryRoute);
+app.use("/api/brand", brandRoute);
+app.use("/api/blogcategory", blogcateRoute)
 
 app.use(notFound);
 app.use(errorHandler);
