@@ -1,4 +1,5 @@
 const Product = require("../models/ProductModel");
+const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
 
@@ -67,11 +68,11 @@ const getAllProduct = asyncHandler(async (req, res) => {
 
     query = query.skip(skip).limit(limit);
 
-    if(req.query.page){
-       const productCount = await Product.countDocuments();
-       if(skip >= productCount){
-        throw new Error ("This Page does not exists");
-       }
+    if (req.query.page) {
+      const productCount = await Product.countDocuments();
+      if (skip >= productCount) {
+        throw new Error("This Page does not exists");
+      }
     }
 
     // Thực thi truy vấn
@@ -122,10 +123,77 @@ const deleteProduct = asyncHandler(async (req, res) => {
   }
 });
 
+const addToWishList = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { prdId } = req.body;
+  try {
+    const user = await User.findById(_id);
+    const alreadyadded = user.wishList.find((id) => id.toString() === prdId);
+    if (alreadyadded) {
+      let user = await User.findOneAndUpdate(
+        _id,
+        { $pull: { wishList: prdId } },
+        { new: true }
+      );
+      res.json(user);
+    } else {
+      let user = await User.findOneAndUpdate(
+        _id,
+        { $push: { wishList: prdId } },
+        { new: true }
+      );
+      res.json(user);
+    }
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const rating = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { star,comment, prdId } = req.body;
+
+  try {
+    const product = await Product.findById(prdId);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const alreadyRatedIndex = product.rating.findIndex(
+      (r) => r.posteby.toString() === _id.toString()
+    );
+
+    if (alreadyRatedIndex !== -1) {
+      product.rating[alreadyRatedIndex].star = star,
+      product.rating[alreadyRatedIndex].comment = comment;
+    } else {
+      product.rating.push({ star, posteby: _id, comment });
+    }
+
+    await product.save();
+
+    // Tính lại trung bình đánh giá
+    const updatedProduct = await Product.findById(prdId);
+    const totalRatingCount = updatedProduct.rating.length;
+    const ratingSum = updatedProduct.rating.reduce((sum, item) => sum + item.star, 0);
+    const averageRating = Math.round(ratingSum / totalRatingCount);
+
+    updatedProduct.totalRating = averageRating;
+    await updatedProduct.save();
+
+    res.json(updatedProduct);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+
 module.exports = {
   createProduct,
   getAProduct,
   getAllProduct,
   updateProduct,
   deleteProduct,
+  addToWishList,
+  rating,
 };
