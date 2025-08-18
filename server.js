@@ -11,11 +11,12 @@ const PORT = process.env.PORT || 4000;
 const connectDB = require("./config/connectDB");
 const authRouter = require("./routes/authRoute");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
-const productRouter = require("./routes/productRoute")
-const blogRouter = require("./routes/blogRoute")
-const categoryRoute = require("./routes/categoryRoute")
-const brandRoute = require("./routes/brandRoute")
-const blogcateRoute = require("./routes/blogcateRoute")
+const productRouter = require("./routes/productRoute");
+const blogRouter = require("./routes/blogRoute");
+const categoryRoute = require("./routes/categoryRoute");
+const brandRoute = require("./routes/brandRoute");
+const blogcateRoute = require("./routes/blogcateRoute");
+const couponRoute = require("./routes/couponRoute");
 
 // Middleware
 app.use(morgan("dev"))
@@ -32,7 +33,8 @@ app.use("/api/product", productRouter);
 app.use("/api/blog",blogRouter );
 app.use("/api/category", categoryRoute);
 app.use("/api/brand", brandRoute);
-app.use("/api/blogcategory", blogcateRoute)
+app.use("/api/blogcategory", blogcateRoute);
+app.use("/api/coupon", couponRoute);
 
 app.use(notFound);
 app.use(errorHandler);
