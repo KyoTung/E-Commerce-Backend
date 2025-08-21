@@ -2,6 +2,9 @@ const Product = require("../models/ProductModel");
 const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
+const validateMongoDbId = require("../utils/validateMongoDB");
+const cloudinaryUploadImage = require("../utils/cloudinary");
+const path = require("path");
 
 const createProduct = asyncHandler(async (req, res) => {
   try {
@@ -21,6 +24,7 @@ const createProduct = asyncHandler(async (req, res) => {
 
 const getAProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  validateMongoDbId(id);
   try {
     const product = await Product.findById(id);
     res.json(product);
@@ -86,6 +90,7 @@ const getAllProduct = asyncHandler(async (req, res) => {
 
 const updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
+    validateMongoDbId(id);
   try {
     if (req.body.title) {
       req.body.slug = slugify(req.body.title);
@@ -110,6 +115,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const deleteProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
+    validateMongoDbId(id);
   try {
     const deleteProduct = await Product.findOneAndDelete({ _id: id });
 
@@ -126,6 +132,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
 const addToWishList = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { prdId } = req.body;
+    validateMongoDbId(_id);
   try {
     const user = await User.findById(_id);
     const alreadyadded = user.wishList.find((id) => id.toString() === prdId);
@@ -152,7 +159,7 @@ const addToWishList = asyncHandler(async (req, res) => {
 const rating = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { star,comment, prdId } = req.body;
-
+  validateMongoDbId(_id);
   try {
     const product = await Product.findById(prdId);
     if (!product) {
@@ -187,6 +194,31 @@ const rating = asyncHandler(async (req, res) => {
   }
 });
 
+const uploadImagesProduct = asyncHandler(async(req, res)=>{
+  const {id} = req.params;
+    validateMongoDbId(id);
+  try{
+    const uploadImage = (path) => cloudinaryUploadImage(path, "images");
+    const urls = [];
+    const files = req.files;
+    for(const file of files){
+      const {path} = file;
+      const newPath = await uploadImage(path);
+      urls.push(newPath);
+      console.log(newPath)
+    }
+    const findProduct = await Product.findByIdAndUpdate(id, {
+      images: urls.map((file) => {
+        return file;
+      })
+    }, {
+      new: true
+    })
+    res.json(findProduct);
+  } catch(error){
+    throw new Error(error);
+  }
+})
 
 module.exports = {
   createProduct,
@@ -196,4 +228,5 @@ module.exports = {
   deleteProduct,
   addToWishList,
   rating,
+  uploadImagesProduct
 };
