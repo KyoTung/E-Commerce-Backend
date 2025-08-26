@@ -1,6 +1,7 @@
 const multer = require("multer");
 const sharp = require("sharp");
 const path = require("path");
+const fs = require("fs")
 
 // Cấu hình lưu file tạm thời
 const multerStorage = multer.diskStorage({
@@ -41,6 +42,7 @@ const productImgResize = async (req, res, next) => {
         .toFormat("jpeg")
         .jpeg({ quality: 90 })
         .toFile(outputPath);
+        fs.unlinkSync(outputPath)
     })
   );
 

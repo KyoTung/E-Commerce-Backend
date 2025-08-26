@@ -3,10 +3,7 @@ const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler");
 const validateMongoDbId = require("../utils/validateMongoDB");
 const cloudinaryUploadImage = require("../utils/cloudinary");
-
-
-
-
+const fs = require("fs");
 
 const createBlog = asyncHandler(async (req, res) => {
   try {
@@ -48,7 +45,7 @@ const getBlog = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
   try {
-    const blog = await Blog.findById(id).populate("likes").populate("dislikes")
+    const blog = await Blog.findById(id).populate("likes").populate("dislikes");
     const updateView = await Blog.findByIdAndUpdate(
       id,
       {
@@ -113,7 +110,7 @@ const likeBlog = asyncHandler(async (req, res) => {
       { new: true }
     );
     res.json(blog);
-  } else{
+  } else {
     const blog = await Blog.findByIdAndUpdate(
       blogId,
       {
@@ -135,7 +132,7 @@ const dislikeBlog = asyncHandler(async (req, res) => {
 
   //lay id user da dang nhap
   const userLoginId = req?.user?._id;
-  
+
   //kiem tra user co dislike hay khong
   const isDisliked = blog?.isDisliked;
 
@@ -164,7 +161,7 @@ const dislikeBlog = asyncHandler(async (req, res) => {
       { new: true }
     );
     res.json(blog);
-  } else{
+  } else {
     const blog = await Blog.findByIdAndUpdate(
       blogId,
       {
@@ -177,31 +174,35 @@ const dislikeBlog = asyncHandler(async (req, res) => {
   }
 });
 
-const uploadImages = asyncHandler(async(req, res)=>{
-  const {id} = req.params;
-    validateMongoDbId(id);
-  try{
+const uploadImages = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  validateMongoDbId(id);
+  try {
     const uploadImage = (path) => cloudinaryUploadImage(path, "images");
     const urls = [];
     const files = req.files;
-    for(const file of files){
-      const {path} = file;
+    for (const file of files) {
+      const { path } = file;
       const newPath = await uploadImage(path);
       urls.push(newPath);
-      console.log(newPath)
+      fs.unlinkSync(path);
     }
-    const findBlog = await Blog.findByIdAndUpdate(id, {
-      images: urls.map((file) => {
-        return file;
-      })
-    }, {
-      new: true
-    })
+    const findBlog = await Blog.findByIdAndUpdate(
+      id,
+      {
+        images: urls.map((file) => {
+          return file;
+        }),
+      },
+      {
+        new: true,
+      }
+    );
     res.json(findBlog);
-  } catch(error){
+  } catch (error) {
     throw new Error(error);
   }
-})
+});
 
 module.exports = {
   createBlog,
@@ -211,5 +212,5 @@ module.exports = {
   deleteBlog,
   likeBlog,
   dislikeBlog,
-  uploadImages
+  uploadImages,
 };
