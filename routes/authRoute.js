@@ -18,7 +18,8 @@ const {
   resetPassword,
   loginAdmin,
   getWishList,
-  updateInfo
+  updateInfo,
+  userCart,
 } = require("../controller/userController");
 
 
@@ -29,6 +30,7 @@ router.put('/reset-password/:token', resetPassword );
 router.put('/password',authMiddleware, updatePassword);
 router.post("/login", loginUser);
 router.post("/admin-login", loginAdmin);
+router.post("/cart", authMiddleware, userCart);
 router.get("/refresh", handleRefreshToken);
 router.get("/logout", logout);
 router.get("/wishlist", authMiddleware, getWishList);

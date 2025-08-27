@@ -17,6 +17,7 @@ const categoryRoute = require("./routes/categoryRoute");
 const brandRoute = require("./routes/brandRoute");
 const blogcateRoute = require("./routes/blogcateRoute");
 const couponRoute = require("./routes/couponRoute");
+const orderRoute = require("./routes/orderRoute")
 
 // Middleware
 app.use(morgan("dev"))
@@ -35,6 +36,7 @@ app.use("/api/category", categoryRoute);
 app.use("/api/brand", brandRoute);
 app.use("/api/blogcategory", blogcateRoute);
 app.use("/api/coupon", couponRoute);
+app.use("/api/order", orderRoute);
 
 app.use(notFound);
 app.use(errorHandler);

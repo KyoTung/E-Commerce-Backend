@@ -41,10 +41,11 @@ var productSchema = new mongoose.Schema(
       default: 0,
       select: false,
     },
-    color: {
-      type: String,
+     color: {
+      type: [String], // Mảng các màu dạng string
       required: true,
     },
+
     rating: [
       {
         star: Number,
@@ -53,7 +54,7 @@ var productSchema = new mongoose.Schema(
       },
     ],
     totalRating:{
-      type:String,
+      type:Number,
       default: 0,
     }
   },
