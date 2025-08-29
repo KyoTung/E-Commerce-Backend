@@ -1,5 +1,6 @@
 const User = require("../models/UserModel");
 const Product = require("../models/ProductModel");
+const Coupon = require("../models/CouponModel");
 const Cart = require("../models/CartModel");
 const asyncHandler = require("express-async-handler");
 const { generateToken } = require("../config/jwtToken");
@@ -372,6 +373,60 @@ const userCart = asyncHandler(async (req, res) => {
   }
 });
 
+const getUserCart = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  validateMongoDbId(_id);
+  try {
+    const findCart = await Cart.findOne({ orderby: _id }).populate(
+      "products.product",
+      "_id title price totalAfterDiscount"
+    );
+    res.json(findCart);
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const deleteCart = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  validateMongoDbId(_id);
+  try {
+    const findUser = await User.findOne({ _id });
+    console.log("_id from req.user:", _id);
+    console.log("findUser._id:", findUser._id);
+
+    const deleteCart = await Cart.findOneAndDelete({ orderby: findUser._id });
+    res.json({
+      message: "Product removed from cart successfully",
+      cart: deleteCart,
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const applyCoupon = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  validateMongoDbId(_id);
+  const { coupon } = req.body;
+  const validateCoupon = await Coupon.findOne({ name: coupon });
+  if (validateCoupon == null) {
+    throw new Error("Invalid coupon");
+  }
+  const findUser = await User.findOne({ _id });
+  let {cartTotal} = await Cart.findOne({orderby: findUser._id}).populate("products.product");
+
+  let totalAfterDiscount = (
+    cartTotal -(cartTotal * validateCoupon.discount) / 100
+  ).toFixed(2);
+  await Cart.findOneAndUpdate(
+    { orderby: findUser._id, totalAfterDiscount: totalAfterDiscount },
+    { new: true }
+  );
+
+  res.json(totalAfterDiscount);
+});
+
 module.exports = {
   createUser,
   loginUser,
@@ -390,4 +445,7 @@ module.exports = {
   getWishList,
   updateInfo,
   userCart,
+  getUserCart,
+  deleteCart,
+  applyCoupon,
 };
