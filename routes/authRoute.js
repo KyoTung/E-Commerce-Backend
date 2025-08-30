@@ -19,10 +19,12 @@ const {
   loginAdmin,
   getWishList,
   updateInfo,
-  userCart,
+  addToCart,
   getUserCart,
   deleteCart,
   applyCoupon,
+  updateCartItem,
+  removeCartItem
 } = require("../controller/userController");
 
 
@@ -33,18 +35,19 @@ router.put('/reset-password/:token', resetPassword );
 router.put('/password',authMiddleware, updatePassword);
 router.post("/login", loginUser);
 router.post("/admin-login", loginAdmin);
-router.post("/cart", authMiddleware, userCart);
+router.post("/cart", authMiddleware, addToCart);
 router.post("/apply-coupon", authMiddleware, applyCoupon);
 
 router.get("/refresh", handleRefreshToken);
 router.get("/logout", logout);
 router.get("/wishlist", authMiddleware, getWishList);
 router.get("/cart", authMiddleware, getUserCart);
-
+router.put("/cart", authMiddleware, updateCartItem)
 
 router.get("/all-users", getAllUsers);
 router.get("/:id",authMiddleware,isAdmin,getUser);
 router.delete("/cart",authMiddleware, deleteCart)
+router.delete("/cart-item/", authMiddleware, removeCartItem);
 router.delete("/:id", deleteUser);
 router.put("/update-user",authMiddleware,isAdmin, updateUser);
 router.put("/update-informaion", authMiddleware, updateInfo)

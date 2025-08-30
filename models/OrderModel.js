@@ -13,19 +13,18 @@ var orderSchema = new mongoose.Schema(
         price: Number,
       },
     ],
-    //   paymentIntent: {
-    //     // Nên định nghĩa rõ cấu trúc con thay vì mảng rỗng
-    //     id: String,        // ID từ gateway (e.g., pi_123 from Stripe)
-    //     method: String,    // Phương thức chi tiết (e.g., "card_visa")
-    //     amount: Number,    // Số tiền thực thanh toán
-    //     currency: {
-    //       type: String,
-    //       default: "VND"
-    //     },
-    //     status: String     // Trạng thái từ gateway (e.g., "requires_action")
-    //   },
+      paymentIntent: {
+        // Nên định nghĩa rõ cấu trúc con thay vì mảng rỗng
+        id: String,        // ID từ gateway (e.g., pi_123 from Stripe)
+        method: String,    // Phương thức chi tiết (e.g., "card_visa")
+        amount: Number,    // Số tiền thực thanh toán
+        currency: {
+          type: String,
+          default: "VND"
+        },
+        status: String     // Trạng thái từ gateway (e.g., "requires_action")
+      },
 
-    paymentIntent: {},
     orderBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -68,9 +67,16 @@ var orderSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+        // Thông tin người nhận hàng (nếu đặt hộ)
+    customerInfo: {
+      name: { type: String, required: true },
+      address: { type: String, required: true },
+      phone: { type: String, required: true },
+    },
+
   },
   {
-    timestamps: true, // Tự động thêm createdAt và updatedAt
+    timestamps: true, 
   }
 );
 
