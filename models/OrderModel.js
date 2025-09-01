@@ -36,6 +36,7 @@ var orderSchema = new mongoose.Schema(
         "Delivered",
         "Returned",
       ],
+       required: true,
     },
     paymentMethod: {
       type: String,

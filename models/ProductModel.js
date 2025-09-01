@@ -42,7 +42,7 @@ var productSchema = new mongoose.Schema(
       select: false,
     },
      color: {
-      type: [String], // Mảng các màu dạng string
+      type: String, 
       required: true,
     },
 
