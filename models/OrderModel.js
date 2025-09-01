@@ -24,12 +24,6 @@ var orderSchema = new mongoose.Schema(
         },
         status: String     // Trạng thái từ gateway (e.g., "requires_action")
       },
-
-    orderBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
     orderStatus: {
       type: String,
       default: "Not Processed",
@@ -56,6 +50,7 @@ var orderSchema = new mongoose.Schema(
     orderby: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      require: true
     },
 
     total: {
