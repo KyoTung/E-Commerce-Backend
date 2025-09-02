@@ -41,11 +41,8 @@ var productSchema = new mongoose.Schema(
       default: 0,
       select: false,
     },
-     color: {
-      type: String, 
-      required: true,
-    },
-
+    color: [],
+    tags: [],
     rating: [
       {
         star: Number,
@@ -53,10 +50,10 @@ var productSchema = new mongoose.Schema(
         posteby: { type: mongoose.Schema.ObjectId, ref: "User" },
       },
     ],
-    totalRating:{
-      type:Number,
+    totalRating: {
+      type: Number,
       default: 0,
-    }
+    },
   },
   {
     timestamps: true,

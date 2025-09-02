@@ -3,9 +3,9 @@ const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
 const validateMongoDbId = require("../utils/validateMongoDB");
-const cloudinaryUploadImage = require("../utils/cloudinary");
+const {cloudinaryUploadImage, cloudinaryDeleteImage} = require("../utils/cloudinary");
 const path = require("path");
-const fs = require("fs")
+const fs = require("fs");
 
 const createProduct = asyncHandler(async (req, res) => {
   try {
@@ -91,7 +91,7 @@ const getAllProduct = asyncHandler(async (req, res) => {
 
 const updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
-    validateMongoDbId(id);
+  validateMongoDbId(id);
   try {
     if (req.body.title) {
       req.body.slug = slugify(req.body.title);
@@ -116,7 +116,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const deleteProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
-    validateMongoDbId(id);
+  validateMongoDbId(id);
   try {
     const deleteProduct = await Product.findOneAndDelete({ _id: id });
 
@@ -133,7 +133,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
 const addToWishList = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { prdId } = req.body;
-    validateMongoDbId(_id);
+  validateMongoDbId(_id);
   try {
     const user = await User.findById(_id);
     const alreadyadded = user.wishlist.find((id) => id.toString() === prdId);
@@ -159,7 +159,7 @@ const addToWishList = asyncHandler(async (req, res) => {
 
 const rating = asyncHandler(async (req, res) => {
   const { _id } = req.user;
-  const { star,comment, prdId } = req.body;
+  const { star, comment, prdId } = req.body;
   validateMongoDbId(_id);
   try {
     const product = await Product.findById(prdId);
@@ -172,8 +172,8 @@ const rating = asyncHandler(async (req, res) => {
     );
 
     if (alreadyRatedIndex !== -1) {
-      product.rating[alreadyRatedIndex].star = star,
-      product.rating[alreadyRatedIndex].comment = comment;
+      (product.rating[alreadyRatedIndex].star = star),
+        (product.rating[alreadyRatedIndex].comment = comment);
     } else {
       product.rating.push({ star, posteby: _id, comment });
     }
@@ -183,7 +183,10 @@ const rating = asyncHandler(async (req, res) => {
     // Tính lại trung bình đánh giá
     const updatedProduct = await Product.findById(prdId);
     const totalRatingCount = updatedProduct.rating.length;
-    const ratingSum = updatedProduct.rating.reduce((sum, item) => sum + item.star, 0);
+    const ratingSum = updatedProduct.rating.reduce(
+      (sum, item) => sum + item.star,
+      0
+    );
     const averageRating = Math.round(ratingSum / totalRatingCount);
 
     updatedProduct.totalRating = averageRating;
@@ -195,31 +198,37 @@ const rating = asyncHandler(async (req, res) => {
   }
 });
 
-const uploadImagesProduct = asyncHandler(async(req, res)=>{
-  const {id} = req.params;
-    validateMongoDbId(id);
-  try{
+const uploadImagesProduct = asyncHandler(async (req, res) => {
+  try {
     const uploadImage = (path) => cloudinaryUploadImage(path, "images");
     const urls = [];
     const files = req.files;
-    for(const file of files){
-      const {path} = file;
+    for (const file of files) {
+      const { path } = file;
       const newPath = await uploadImage(path);
       urls.push(newPath);
-      fs.unlinkSync(path); 
+      fs.unlinkSync(path);
     }
-    const findProduct = await Product.findByIdAndUpdate(id, {
-      images: urls.map((file) => {
-        return file;
-      })
-    }, {
-      new: true
-    })
-    res.json(findProduct);
-  } catch(error){
+    const images = urls.map((file) => {
+      return file;
+    });
+    res.json(images);
+  } catch (error) {
     throw new Error(error);
   }
-})
+});
+
+const deleteImagesProduct = asyncHandler(async (req, res) => {
+  try {
+    const deleteImage = cloudinaryDeleteImage(path, "images");
+   res.json({
+    message:"Images deleted"
+   })
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
 
 module.exports = {
   createProduct,
@@ -229,5 +238,6 @@ module.exports = {
   deleteProduct,
   addToWishList,
   rating,
-  uploadImagesProduct
+  uploadImagesProduct,
+  deleteImagesProduct
 };

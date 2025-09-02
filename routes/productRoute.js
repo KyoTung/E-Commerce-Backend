@@ -8,7 +8,8 @@ const {
   deleteProduct,
   addToWishList,
   rating,
-  uploadImagesProduct
+  uploadImagesProduct,
+  deleteImagesProduct
 } = require("../controller/productController");
 
 const {
@@ -18,7 +19,7 @@ const {
 
 const router = express.Router();
 router.put(
-  "/upload/:id",
+  "/upload-images",
   authMiddleware,
   isAdmin,
   uploadPhoto.array("images", 10),
@@ -27,11 +28,12 @@ router.put(
 );
 router.post("/", authMiddleware, isAdmin, createProduct);
 router.get("/:id", getAProduct);
+router.get("/", getAllProduct);
 router.put("/wishlist", authMiddleware, addToWishList);
 router.put("/rating", authMiddleware, rating);
 
 router.put("/:id", authMiddleware, isAdmin, updateProduct);
 router.delete("/:id", authMiddleware, isAdmin, deleteProduct);
-router.get("/", getAllProduct);
+router.delete("/delete-images/:id", authMiddleware, isAdmin, deleteImagesProduct);
 
 module.exports = router;
