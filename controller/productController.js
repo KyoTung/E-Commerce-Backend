@@ -3,7 +3,7 @@ const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
 const validateMongoDbId = require("../utils/validateMongoDB");
-const {cloudinaryUploadImage, cloudinaryDeleteImage} = require("../utils/cloudinary");
+const {cloudinaryUploadImage,cloudinaryDeleteImage} = require("../utils/cloudinary");
 const path = require("path");
 const fs = require("fs");
 
@@ -219,10 +219,12 @@ const uploadImagesProduct = asyncHandler(async (req, res) => {
 });
 
 const deleteImagesProduct = asyncHandler(async (req, res) => {
+  const {id} = req.params;
   try {
-    const deleteImage = cloudinaryDeleteImage(path, "images");
+    const deleteImage = cloudinaryDeleteImage(id, "images");
    res.json({
-    message:"Images deleted"
+    message:"Images deleted",
+    deleteImage
    })
   } catch (error) {
     throw new Error(error);
