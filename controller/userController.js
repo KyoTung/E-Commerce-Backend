@@ -64,7 +64,7 @@ const loginUser = asyncHandler(async (req, res) => {
       token: generateToken(findUser?._id),
     });
   } else {
-    throw new Error("Invalid Crendentials!");
+    throw new Error("Sai mật khẩu hoặc email!");
   }
 });
 
