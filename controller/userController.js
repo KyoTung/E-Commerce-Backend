@@ -34,12 +34,12 @@ const loginUser = asyncHandler(async (req, res) => {
   const findUser = await User.findOne({ email: email });
 
   if (!findUser) {
-    throw new Error("Account Not Found");
+    throw new Error("Không tìm thấy tài khoản hoặc tài khoản không tồn tại!");
   }
 
   const isPasswordValid = await findUser.isPasswordMatched(password);
   if (!isPasswordValid) {
-    throw new Error("Incorrect Password");
+    throw new Error("Sai mật khẩu!");
   }
 
   if (findUser && (await findUser.isPasswordMatched(password))) {
@@ -64,7 +64,7 @@ const loginUser = asyncHandler(async (req, res) => {
       token: generateToken(findUser?._id),
     });
   } else {
-    throw new Error("Sai mật khẩu hoặc email!");
+    throw new Error("Đăng nhập thất bại!");
   }
 });
 
@@ -163,16 +163,16 @@ const deleteUser = asyncHandler(async (req, res) => {
 
 //update a user
 const updateUser = asyncHandler(async (req, res) => {
-  const { id } = req.user;
+  const { id } = req.params;
   validateMongoDbId(id);
   try {
     const updateUser = await User.findByIdAndUpdate(
       id,
       {
         fullName: req?.body?.fullName,
-        email: req?.body?.email,
         address: req?.body?.address,
         phone: req?.body?.phone,
+        role: req?.body?.role,
       },
       {
         new: true,
@@ -190,8 +190,8 @@ const updateUser = asyncHandler(async (req, res) => {
 
 // save address user
 const updateInfo = asyncHandler(async (req, res) => {
-  const { _id } = req.user;
-  validateMongoDbId(_id);
+  const { id } = req.params;
+  validateMongoDbId(id);
   try {
     const updateUser = await User.findByIdAndUpdate(
       _id,

@@ -35,12 +35,12 @@ router.get("/logout", logout);
 router.get("/wishlist", authMiddleware, getWishList);
 
 
-router.get("/all-users", getAllUsers);
+router.get("/all-users",authMiddleware, getAllUsers);
 router.get("/:id",authMiddleware,getUser);
 
 router.delete("/:id", deleteUser);
-router.put("/update-user",authMiddleware,isAdmin, updateUser);
-router.put("/update-informaion", authMiddleware, updateInfo)
+router.put("/update-user/:id",authMiddleware,isAdmin, updateUser);
+router.put("/update-informaion/:id", authMiddleware, updateInfo)
 
 router.put("/block-user/:id", authMiddleware, blockUser);
 router.put("/unlock-user/:id", authMiddleware, unlockUser);
