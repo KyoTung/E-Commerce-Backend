@@ -15,6 +15,19 @@ const productSchema = new mongoose.Schema(
     },
     description: String,
 
+    basePrice: {
+      type: Number,
+      required: true,
+    },
+
+    images: [
+      {
+        url: String,
+        asset_id: String,
+        public_id: String,
+      },
+    ],
+
     brand: {
       type: String,
       required: true,
@@ -26,12 +39,12 @@ const productSchema = new mongoose.Schema(
 
     variants: [
       {
-        color: { type: String, required: true },
-        storage: { type: String, required: true }, // ví dụ: "128GB", "256GB"
-        price: { type: Number, required: true },
-        quantity: { type: Number, required: true },
-        images: [{ type: String }]
-      }
+        color: { type: String },
+        storage: { type: String },
+        price: { type: Number },
+        quantity: { type: Number },
+        images: [{ type: String }],
+      },
     ],
 
     tags: [{ type: String }],
@@ -39,13 +52,14 @@ const productSchema = new mongoose.Schema(
     specifications: {
       screen: String,
       processor: String,
+      storage: String,
       ram: String,
       battery: String,
       os: String,
       frontCamera: String,
       rearCamera: String,
       sim: String,
-      design: String
+      design: String,
     },
 
     rating: [
@@ -53,8 +67,8 @@ const productSchema = new mongoose.Schema(
         star: { type: Number, required: true },
         comment: String,
         posteby: { type: mongoose.Schema.ObjectId, ref: "User" },
-        createdAt: { type: Date, default: Date.now }
-      }
+        createdAt: { type: Date, default: Date.now },
+      },
     ],
     totalRating: {
       type: Number,
@@ -65,7 +79,7 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       select: false,
-    }
+    },
   },
   {
     timestamps: true,

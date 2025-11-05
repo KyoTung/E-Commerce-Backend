@@ -153,6 +153,7 @@ const deleteUser = asyncHandler(async (req, res) => {
   try {
     const deleteUser = await User.findByIdAndDelete(id);
     res.json({
+      deleteUser,
       message: "User deleted successfully",
       success: true,
     });
@@ -223,6 +224,7 @@ const blockUser = asyncHandler(async (req, res) => {
       { new: true }
     );
     res.json({
+      data: block,
       message: "user blocked successfully!",
     });
   } catch (error) {
@@ -240,6 +242,7 @@ const unlockUser = asyncHandler(async (req, res) => {
       { new: true }
     );
     res.json({
+      data: unlock,
       message: "user unlocked successfully!",
     });
   } catch (error) {
