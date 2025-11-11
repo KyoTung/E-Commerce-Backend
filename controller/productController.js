@@ -220,9 +220,13 @@ const uploadImagesProduct = asyncHandler(async (req, res) => {
 });
 
 const deleteImagesProduct = asyncHandler(async (req, res) => {
-  const {id} = req.params;
+  const {id, publicIdToDelete} = req.params;
   try {
-    const deleteImage = cloudinaryDeleteImage(id, "images");
+     cloudinaryDeleteImage(publicIdToDelete, "images");
+   const deleteImage = await Product.updateOne(
+  { _id: id },
+  { $pull: { images: { public_id: publicIdToDelete } } }
+);
    res.json({
     message:"Images deleted",
     deleteImage
