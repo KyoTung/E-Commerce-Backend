@@ -43,7 +43,11 @@ const productSchema = new mongoose.Schema(
         storage: { type: String },
         price: { type: Number },
         quantity: { type: Number },
-        images: [{ type: String }],
+        images: [ {
+        url: String,
+        asset_id: String,
+        public_id: String,
+      }],
       },
     ],
 
