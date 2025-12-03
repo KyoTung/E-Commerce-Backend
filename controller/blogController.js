@@ -34,7 +34,7 @@ const updateBlog = asyncHandler(async (req, res) => {
 
 const getAllBlogs = asyncHandler(async (req, res) => {
   try {
-    const allBlogs = await Blog.find();
+    const allBlogs = await Blog.find().sort({ createdAt: -1 });
     res.json(allBlogs);
   } catch (error) {
     throw new Error(error);
