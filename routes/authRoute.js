@@ -30,15 +30,15 @@ router.put('/password',authMiddleware, updatePassword);
 router.post("/login", loginUser);
 router.post("/admin-login", loginAdmin);
 
-router.get("/refresh", handleRefreshToken);
-router.get("/logout", logout);
+router.post("/refresh", handleRefreshToken);
+router.post("/logout", logout);
 router.get("/wishlist", authMiddleware, getWishList);
 
 
 router.get("/all-users",authMiddleware, getAllUsers);
 router.get("/:id",authMiddleware,getUser);
 
-router.delete("/:id", deleteUser);
+router.delete("/:id", authMiddleware,isAdmin, deleteUser);
 router.put("/update-user/:id",authMiddleware,isAdmin, updateUser);
 router.put("/update-informaion/:id", authMiddleware, updateInfo)
 
