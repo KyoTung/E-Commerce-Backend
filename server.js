@@ -24,7 +24,18 @@ const enquiryRoute = require("./routes/enquiryRoute")
 
 // Middleware
 app.use(morgan("dev"))
-app.use(cors());
+const CLIENT_ORIGIN = 'http://localhost:3000'; // React dev
+
+// CORS cho tất cả route
+app.use(
+  cors({
+    origin: CLIENT_ORIGIN,        
+    credentials: true,            
+    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization'],
+    exposedHeaders: [],            
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -43,6 +54,10 @@ app.use("/api/cart", cartRoute);
 app.use("/api/order", orderRoute);
 app.use("/api/color", colorRoute);
 app.use("/api/enquiry", enquiryRoute);
+
+
+
+
 
 app.use(notFound);
 app.use(errorHandler);
