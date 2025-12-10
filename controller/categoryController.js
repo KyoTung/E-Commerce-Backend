@@ -27,7 +27,7 @@ const updateCategory = asyncHandler(async(req, res) =>{
 
 const getAllCategory =  asyncHandler(async(req, res) =>{
     try{
-        const allCate = await Category.find();
+        const allCate = await Category.find().sort({ createdAt: -1 });
         res.json(allCate)
     } catch (error) {
     throw new Error(error);

@@ -27,7 +27,7 @@ const updateColor = asyncHandler(async(req, res) =>{
 
 const getAllColor =  asyncHandler(async(req, res) =>{
     try{
-        const allColor = await Color.find();
+        const allColor = await Color.find().sort({ createdAt: -1 });
         res.json(allColor)
     } catch (error) {
     throw new Error(error);

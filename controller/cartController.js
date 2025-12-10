@@ -9,149 +9,118 @@ var uniqid = require("uniqid");
 const mongoose = require("mongoose");
 
 const addToCart = asyncHandler(async (req, res) => {
-  // Lấy dữ liệu giỏ hàng từ body request
   const { cart } = req.body;
-  // Lấy ID user từ object req.user (do middleware auth gán)
   const { _id } = req.user;
-  // Kiểm tra ID user có hợp lệ không (phải là ObjectId hợp lệ)
   validateMongoDbId(_id);
 
   try {
-    // Tìm user hiện tại trong database
     const findUser = await User.findById(_id);
-    // Tìm giỏ hàng hiện tại của user (nếu có)
     let existingCart = await Cart.findOne({ orderby: findUser._id });
 
-    // KIỂM TRA TỒN KHO: Xác minh tất cả sản phẩm có đủ số lượng trước khi xử lý
+    let processedCartItems = [];
+    let cartTotal = 0;
+
     for (let i = 0; i < cart.length; i++) {
-      // Lấy thông tin sản phẩm từ database
-      const product = await Product.findById(cart[i]._id);
-      
-      // Kiểm tra sản phẩm có tồn tại không
+      const item = cart[i];
+      const product = await Product.findById(item._id);
+
       if (!product) {
-        return res.status(404).json({ 
-          error: `Không tìm thấy sản phẩm: ${cart[i]._id}` 
+        return res
+          .status(404)
+          .json({ message: `Không tìm thấy sản phẩm ID: ${item._id}` });
+      }
+
+      const variant = product.variants.find(
+        (v) => v.color === item.color && v.storage === item.storage
+      );
+
+      if (!variant) {
+        return res.status(400).json({
+          message: `Phiên bản ${item.storage} - ${item.color} không tồn tại cho sản phẩm này`,
         });
       }
-      
-      // Tính tổng số lượng sản phẩm sẽ có trong giỏ hàng
-      let totalQuantity = cart[i].count;
-      
-      // Nếu đã có giỏ hàng, kiểm tra xem sản phẩm đã có trong giỏ chưa
+
+      // KIỂM TRA TỒN KHO (Check theo variant quantity0
+      const availableStock =
+        variant.quantity !== undefined ? variant.quantity : product.quantity;
+
+      // Tính tổng số lượng user muốn mua
+      let currentQtyInCart = 0;
       if (existingCart) {
-        const existingProduct = existingCart.products.find(
-          p => p.product.toString() === cart[i]._id && p.color === cart[i].color
+        const foundInCart = existingCart.products.find(
+          (p) =>
+            p.product.toString() === item._id &&
+            p.color === item.color &&
+            p.storage === item.storage
         );
-        
-        // Nếu sản phẩm đã có trong giỏ, cộng thêm số lượng hiện có
-        if (existingProduct) {
-          totalQuantity += existingProduct.count;
-        }
+        if (foundInCart) currentQtyInCart = foundInCart.count;
       }
-      
-      // Kiểm tra số lượng tồn kho có đáp ứng được nhu cầu không
-      if (totalQuantity > product.quantity) {
-        return res.status(400).json({ 
-          error: `Sản phẩm "${product.title}" không đủ số lượng. Hiện có: ${product.quantity}, Bạn yêu cầu: ${totalQuantity}` 
+
+      if (currentQtyInCart + item.count > availableStock) {
+        return res.status(400).json({
+          message: `Sản phẩm "${product.title}" (${item.storage}-${item.color}) không đủ hàng. Còn lại: ${availableStock}`,
         });
       }
-    }
 
-    // TRƯỜNG HỢP 1: Người dùng chưa có giỏ hàng, tạo giỏ hàng mới
-    if (!existingCart) {
-      let products = [];
-      let cartTotal = 0;
-
-      // Duyệt qua từng sản phẩm trong mảng cart gửi lên từ frontend
-      for (let i = 0; i < cart.length; i++) {
-        let object = {};
-        object.product = cart[i]._id; // Lưu id sản phẩm
-        object.count = cart[i].count; // Lưu số lượng mua
-        object.color = cart[i].color; // Lưu màu sản phẩm nếu có
-
-        // Lấy giá sản phẩm từ database
-        let getPrice = await Product.findById(cart[i]._id)
-          .select("price")
-          .exec();
-        object.price = getPrice ? getPrice.price : 0; // Nếu không tìm thấy thì gán 0
-
-        products.push(object); // Thêm object vào mảng products
-        cartTotal += object.price * object.count; // Cộng dồn tổng tiền cart
-      }
-
-      // Tạo cart mới với các sản phẩm và tổng tiền vừa tính
-      const newCart = await new Cart({
-        products,
-        orderby: findUser._id,
-        cartTotal,
-      }).save();
-      
-      // Trả về cart vừa tạo
-      return res.json({
-        success: true,
-        message: "Thêm vào giỏ hàng thành công",
-        cart: newCart
+      // Đẩy vào mảng đã xử lý với giá chuẩn từ DB
+      processedCartItems.push({
+        product: item._id,
+        count: item.count,
+        color: item.color,
+        storage: item.storage,
+        price: variant.price,
       });
     }
 
-    // TRƯỜNG HỢP 2: Người dùng đã có giỏ hàng, cập nhật giỏ hàng hiện có
-    for (let i = 0; i < cart.length; i++) {
-      const incomingItem = cart[i];
-      
-      // Kiểm tra sản phẩm này đã có trong cart chưa (so sánh theo id & color)
-      const existingProductIndex = existingCart.products.findIndex(
-        (p) =>
-          p.product.toString() === incomingItem._id &&
-          p.color === incomingItem.color
+    // TRƯỜNG HỢP A: Chưa có giỏ hàng -> Tạo mới
+    if (!existingCart) {
+      // Tính tổng tiền
+      const total = processedCartItems.reduce(
+        (sum, item) => sum + item.price * item.count,
+        0
       );
 
-      // Lấy giá mới nhất của sản phẩm từ DB
-      let productPrice = await Product.findById(incomingItem._id)
-        .select("price")
-        .exec();
-      productPrice = productPrice ? productPrice.price : 0;
+      const newCart = await new Cart({
+        products: processedCartItems,
+        orderby: findUser._id,
+        cartTotal: total,
+      }).save();
 
-      if (existingProductIndex > -1) {
-        // Nếu sản phẩm đã có trong cart, cộng thêm số lượng
-        existingCart.products[existingProductIndex].count += incomingItem.count;
-        // Cập nhật giá mới nhất cho sản phẩm đó
-        existingCart.products[existingProductIndex].price = productPrice;
+      return res.json(newCart);
+    }
+
+    // TRƯỜNG HỢP B: Đã có giỏ hàng -> Update / Push
+    for (let i = 0; i < processedCartItems.length; i++) {
+      const incomingItem = processedCartItems[i];
+
+      // Tìm xem sản phẩm này và biến thể (color, storage) đã có trong giỏ chưa
+      const existingItemIndex = existingCart.products.findIndex(
+        (p) =>
+          p.product.toString() === incomingItem.product &&
+          p.color === incomingItem.color &&
+          p.storage === incomingItem.storage // So sánh cả color và storage
+      );
+
+      if (existingItemIndex > -1) {
+        // Nếu có rồi: Cộng dồn số lượng và cập nhật giá mới nhất
+        existingCart.products[existingItemIndex].count += incomingItem.count;
+        existingCart.products[existingItemIndex].price = incomingItem.price;
       } else {
-        // Nếu chưa có, thêm sản phẩm mới vào cart
-        existingCart.products.push({
-          product: incomingItem._id,
-          count: incomingItem.count,
-          color: incomingItem.color,
-          price: productPrice,
-        });
+        // Nếu chưa có: Push vào mảng products
+        existingCart.products.push(incomingItem);
       }
     }
 
-    // Tính lại tổng tiền cart sau khi đã merge các sản phẩm
+    // Tính lại tổng tiền giỏ hàng
     existingCart.cartTotal = existingCart.products.reduce(
       (total, item) => total + item.price * item.count,
       0
     );
 
-    // Lưu lại cart đã cập nhật
-    const updatedCart = await existingCart.save();
-    
-    // Trả về cart đã cập nhật
-    res.json({
-      success: true,
-      message: "Cập nhật giỏ hàng thành công",
-      cart: updatedCart
-    });
+    await existingCart.save();
+    res.json(existingCart);
   } catch (error) {
-    // Ghi log lỗi chi tiết để debug
-    console.error('Lỗi thêm vào giỏ hàng:', error);
-    
-    // Trả về lỗi cho client
-    res.status(500).json({ 
-      success: false,
-      error: "Thêm vào giỏ hàng thất bại", 
-      details: error.message 
-    });
+    throw new Error(error);
   }
 });
 
@@ -219,11 +188,10 @@ const applyCoupon = asyncHandler(async (req, res) => {
 
 const updateCartItem = asyncHandler(async (req, res) => {
   const { _id } = req.user;
-  const { productId, color, count, action } = req.body; // Thêm trường 'action' để xác định hành động
+  const { productId, color, count, storage, action } = req.body;
   validateMongoDbId(_id);
   validateMongoDbId(productId);
 
-  // Validate và chuyển đổi count thành số
   const countNum = Number(count);
   if (isNaN(countNum)) {
     throw new Error("Count must be a number");
@@ -232,9 +200,11 @@ const updateCartItem = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ orderby: _id });
   if (!cart) throw new Error("Cart not found");
 
-  // Tìm sản phẩm để cập nhật (theo productId và color)
   let productIndex = cart.products.findIndex(
-    (item) => item.product.toString() === productId && item.color === color
+    (item) =>
+      item.product.toString() === productId &&
+      item.color === color &&
+      item.storage === storage
   );
 
   if (productIndex === -1) throw new Error("Product not in cart");
@@ -268,15 +238,14 @@ const updateCartItem = asyncHandler(async (req, res) => {
     (total, item) => total + item.price * item.count,
     0
   );
-
+  cart.totalAfterDiscount = undefined;
   await cart.save();
-
   res.json({ message: "Cart updated", cart });
 });
 
 const removeCartItem = asyncHandler(async (req, res) => {
   const { _id } = req.user;
-  const { productId, color } = req.body;
+  const { productId, color, storage } = req.body;
   validateMongoDbId(_id);
   validateMongoDbId(productId);
 
@@ -287,9 +256,15 @@ const removeCartItem = asyncHandler(async (req, res) => {
   // Remove product with matching productId AND color
   const initialLength = cart.products.length;
   cart.products = cart.products.filter(
-    (item) => !(item.product.toString() === productId && item.color === color)
+    (item) =>
+      !(
+        (
+          item.product.toString() === productId &&
+          item.color === color &&
+          item.storage === storage
+        ) // <--- Quan trọng
+      )
   );
-
   if (initialLength === cart.products.length) {
     throw new Error("Product with specified color not found in cart");
   }
@@ -309,15 +284,10 @@ const removeCartItem = asyncHandler(async (req, res) => {
     (total, item) => total + item.price * item.count,
     0
   );
-
+  cart.totalAfterDiscount = undefined;
   await cart.save();
-
-  res.json({
-    message: "Product removed from cart",
-    cart,
-  });
+  res.json({ message: "Product removed from cart", cart });
 });
-
 
 module.exports = {
   addToCart,

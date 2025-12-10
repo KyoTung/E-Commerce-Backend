@@ -28,7 +28,7 @@ const updateBlogcategory = asyncHandler(async(req, res) =>{
 
 const getAllBlogCategory =  asyncHandler(async(req, res) =>{
     try{
-        const allBlogCate = await BlogCategory.find();
+        const allBlogCate = await BlogCategory.find().sort({ createdAt: -1 });
         res.json(allBlogCate)
     } catch (error) {
     throw new Error(error);

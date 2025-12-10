@@ -1,13 +1,14 @@
-
-// utils/jwt.js
 const jwt = require('jsonwebtoken');
 
+
 const generateAccessToken = (user) => {
-  // payload tối giản để giảm rủi ro
   return jwt.sign(
-    { sub: user._id.toString(), role: user.role }, // sub = subject
+    { 
+      sub: user._id.toString(), 
+      role: user.role,          
+    },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: '1h' } 
+    { expiresIn: '15m' } 
   );
 };
 

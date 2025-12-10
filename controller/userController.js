@@ -3,9 +3,8 @@ const Product = require("../models/ProductModel");
 const Coupon = require("../models/CouponModel");
 const Cart = require("../models/CartModel");
 const asyncHandler = require("express-async-handler");
-const { generateAccessToken } = require("../config/jwtToken");
+const { generateAccessToken, generateRefreshToken  } = require("../config/jwtToken");
 const validateMongoDbId = require("../utils/validateMongoDB");
-const { generateRefreshToken } = require("../config/refreshToken");
 const jwt = require("jsonwebtoken");
 const sendEmail = require("./emailController");
 const crypto = require("crypto");
@@ -29,46 +28,110 @@ const createUser = asyncHandler(async (req, res) => {
   }
 });
 
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: 30 * 24 * 60 * 60 * 1000,
+};
+
 // login user
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   const user = await User.findOne({ email });
-  if (!user) return res.status(401).json({ message: 'Không tìm thấy tài khoản hoặc tài khoản không tồn tại!' });
+  if (!user)
+    return res.status(401).json({ message: "Tài khoản không tồn tại!" });
 
-  const ok = await bcrypt.compare(password, user.password);
-  if (!ok) return res.status(401).json({ message: 'Sai mật khẩu!' });
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(401).json({ message: "Sai mật khẩu!" });
 
-  // Tạo tokens
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
 
-  // Lưu RT vào user (đơn giản)
   user.refreshToken = refreshToken;
   await user.save();
 
-  // Set cookie RT
- 
-res.cookie("refreshToken", refreshToken, {
-  httpOnly: true,
-  secure: false,             // DEV: false; PROD: true với HTTPS
-  sameSite: "lax",
-  path: "/api/user/refresh", // cookie chỉ gửi khi gọi endpoint này
-  maxAge: 30 * 24 * 60 * 60 * 1000,
-});
-
+  res.cookie("refreshToken", refreshToken, cookieOptions);
 
   return res.json({
     _id: user._id,
     fullName: user.fullName,
     email: user.email,
-    address: user.address,
-    phone: user.phone,
     role: user.role,
     token: accessToken,
   });
 });
 
+//REFRESH TOKEN
+const handleRefreshToken = asyncHandler(async (req, res) => {
+  const rt = req.cookies?.refreshToken;
+
+  if (!rt)
+    return res.status(401).json({ message: "Vui lòng đăng nhập" });
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(rt, process.env.JWT_REFRESH_SECRET);
+
+    const user = await User.findById(decoded.id || decoded.sub);
+
+    // Phát hiện token bị dùng lại hoặc user không khớp
+    if (!user || user.refreshToken !== rt) {
+      // Nếu user tồn tại nhưng token không khớp -> Dấu hiệu bị hack -> Xóa sạch token trong DB
+      if (user) {
+        user.refreshToken = null;
+        await user.save();
+      }
+      // Xóa cookie phía client
+      res.clearCookie("refreshToken", { ...cookieOptions, maxAge: 0 });
+      return res
+        .status(403)
+        .json({ message: "Refresh token reused or invalid" });
+    }
+
+    // --- CẤP MỚI (ROTATION) ---
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    // Cập nhật DB
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    // Gửi Cookie Mới
+    res.cookie("refreshToken", newRefreshToken, cookieOptions);
+
+    // Trả về Access Token Mới
+    return res.json({ accessToken: newAccessToken });
+  } catch (err) {
+    // Token hết hạn hoặc không hợp lệ
+    res.clearCookie("refreshToken", { ...cookieOptions, maxAge: 0 });
+    return res
+      .status(403)
+      .json({ message: "Expired or invalid refresh token" });
+  }
+});
+
+// LOGOUT
+const logout = asyncHandler(async (req, res) => {
+  const rt = req.cookies?.refreshToken;
+
+  if (rt) {
+    try {
+      const decoded = jwt.verify(rt, process.env.JWT_REFRESH_SECRET);
+      const user = await User.findById(decoded.id || decoded.sub);
+      if (user) {
+        user.refreshToken = null;
+        await user.save();
+      }
+    } catch (err) {}
+  }
+
+  res.clearCookie("refreshToken", { ...cookieOptions, maxAge: 0 });
+
+  return res.json({ message: "Logged out successfully" });
+});
 
 const loginAdmin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
@@ -105,84 +168,10 @@ const loginAdmin = asyncHandler(async (req, res) => {
   });
 });
 
-
-const handleRefreshToken = asyncHandler(async (req, res) => {
-  const rt = req.cookies?.refreshToken;
-  if (!rt) return res.status(401).json({ message: 'No refresh token in cookies' });
-
-  try {
-    const payload = jwt.verify(rt, process.env.JWT_REFRESH_SECRET); // { sub, exp }
-
-    const user = await User.findById(payload.sub);
-    if (!user || user.refreshToken !== rt) {
-      // RT không khớp DB (có thể đã logout/rotated/invalid)
-      res.clearCookie('refreshToken', { path: '/api/auth/refresh' });
-      return res.status(403).json({ message: 'Refresh token invalid or mismatched' });
-    }
-
-    // Access Token mới 
-    //const accessToken = generateAccessToken(user);
-
-  
-    const newRefreshToken = generateRefreshToken(user);
-    user.refreshToken = newRefreshToken;
-    await user.save();
-    res.cookie('refreshToken', newRefreshToken, { httpOnly: true, secure: true, sameSite: 'strict', path: '/api/auth/refresh', maxAge: 7*24*60*60*1000 });
-
-    //return res.json({ accessToken });
-  } catch (err) {
-    res.clearCookie('refreshToken', { path: '/api/auth/refresh' });
-    return res.status(401).json({ message: 'Invalid refresh token' });
-  }
-});
-
-// const logout = asyncHandler(async (req, res) => {
-//   const cookie = req.cookies;
-//   const refreshToken = cookie.refreshToken;
-//   if (!cookie?.refreshToken) {
-//     throw new Error("No Refresh Token In Cookies");
-//   }
-//   const user = await User.findOne({ refreshToken });
-//   if (!user) {
-//     res.clearCookie("refreshToken", {
-//       httpOnly: true,
-//       secure: true,
-//     });
-//     return res.sendStatus(204);
-//   }
-//   await User.findOneAndUpdate(
-//     { refreshToken: refreshToken },
-//     { refreshToken: "" }
-//   );
-//   res.clearCookie("refreshToken", {
-//     httpOnly: true,
-//     secure: true,
-//   });
-//   res.sendStatus(204);
-// });
-
-
-const logout = asyncHandler(async (req, res) => {
-  const rt = req.cookies?.refreshToken;
-
-  if (rt) {
-    try {
-      const payload = jwt.verify(rt, process.env.JWT_REFRESH_SECRET);
-      await User.findByIdAndUpdate(payload.sub, { refreshToken: null });
-    } catch (_) {}
-  }
-
-  res.clearCookie('refreshToken', { path: '/api/auth/refresh' });
-  return res.json({ message: 'Logged out' });
-});
-
-module.exports = { loginUser, handleRefreshToken, logout };
-
-
 // get all users
 const getAllUsers = asyncHandler(async (req, res) => {
   try {
-    const allUsers = await User.find();
+    const allUsers = await User.find().sort({ createdAt: -1 });
     res.json(allUsers);
   } catch (error) {
     throw new Error(error);
@@ -252,6 +241,7 @@ const updateInfo = asyncHandler(async (req, res) => {
     const updateUser = await User.findByIdAndUpdate(
       _id,
       {
+        fullName: req?.body?.fullName,
         address: req?.body?.address,
         phone: req?.body?.phone,
       },
@@ -304,8 +294,6 @@ const unlockUser = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
-
-
 
 const updatePassword = asyncHandler(async (req, res) => {
   const { _id } = req.user;
@@ -373,9 +361,6 @@ const getWishList = asyncHandler(async (req, res) => {
   }
 });
 
-
-
-
 module.exports = {
   createUser,
   loginUser,
@@ -393,5 +378,4 @@ module.exports = {
   loginAdmin,
   getWishList,
   updateInfo,
-
 };
