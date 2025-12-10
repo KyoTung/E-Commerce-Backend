@@ -42,10 +42,10 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email });
   if (!user)
-    return res.status(401).json({ message: "Tài khoản không tồn tại!" });
+    return res.status(400).json({ message: "Tài khoản không tồn tại!" });
 
   const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(401).json({ message: "Sai mật khẩu!" });
+  if (!match) return res.status(400).json({ message: "Sai mật khẩu!" });
 
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
@@ -79,11 +79,11 @@ const handleRefreshToken = asyncHandler(async (req, res) => {
 
     // Phát hiện token bị dùng lại hoặc user không khớp
     if (!user || user.refreshToken !== rt) {
-      // Nếu user tồn tại nhưng token không khớp -> Dấu hiệu bị hack -> Xóa sạch token trong DB
-      if (user) {
-        user.refreshToken = null;
-        await user.save();
-      }
+      
+      // if (user) {
+      //   user.refreshToken = null;
+      //   await user.save();
+      // }
       // Xóa cookie phía client
       res.clearCookie("refreshToken", { ...cookieOptions, maxAge: 0 });
       return res
@@ -313,7 +313,7 @@ const forgotPasswordToken = asyncHandler(async (req, res) => {
   const { email } = req.body;
   const user = await User.findOne({ email });
   if (!user) {
-    throw new Error("User not found with this email");
+    return res.status(401).json({ message: "Tài khoản không tồn tại!" });
   }
   try {
     const token = await user.createResetToken();
@@ -328,7 +328,7 @@ const forgotPasswordToken = asyncHandler(async (req, res) => {
     sendEmail(data);
     res.json(token);
   } catch (error) {
-    throw new Error(error);
+    //throw new Error(error);
   }
 });
 

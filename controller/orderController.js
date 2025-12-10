@@ -134,12 +134,12 @@ const getOrderUser = asyncHandler(async (req, res) => {
   validateMongoDbId(_id);
   try {
     const findUser = await User.findById(_id);
-    const order = await Order.findOne({ orderby: findUser._id })
+    const order = await Order.find({ orderby: findUser._id })
     .populate({
       path: 'products.product',
-      select: 'name images price color'
+      select: 'title images price color'
     })
-    .exec();
+    .sort({ createdAt: -1 });
 
     if (order == null) {
       res.json({
