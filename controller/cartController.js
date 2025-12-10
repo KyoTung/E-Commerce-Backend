@@ -130,7 +130,7 @@ const getUserCart = asyncHandler(async (req, res) => {
   try {
     const findCart = await Cart.findOne({ orderby: _id }).populate(
       "products.product",
-      "_id title price totalAfterDiscount"
+      "_id title price images totalAfterDiscount"
     );
     res.json(findCart);
   } catch (error) {
