@@ -154,7 +154,7 @@ const getOrderUser = asyncHandler(async (req, res) => {
   }
 });
 
-const getOrderDetailAdmin = asyncHandler(async (req, res) => {
+const getOrderDetail = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
   try {
@@ -225,4 +225,4 @@ const updateStatus = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = { createOrder, getOrderUser, updateStatus, getAllOrders, getOrderDetailAdmin };
+module.exports = { createOrder, getOrderUser, updateStatus, getAllOrders, getOrderDetail };

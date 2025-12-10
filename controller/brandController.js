@@ -27,7 +27,7 @@ const updateBrand = asyncHandler(async(req, res) =>{
 
 const getAllBrand =  asyncHandler(async(req, res) =>{
     try{
-        const allBrand = await Brand.find();
+        const allBrand = await Brand.find().sort({ createdAt: -1 });
         res.json(allBrand)
     } catch (error) {
     throw new Error(error);
