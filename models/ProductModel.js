@@ -32,7 +32,15 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    slugBrand: {
+      type: String,
+      required: true,
+    },
     category: {
+      type: String,
+      required: true,
+    },
+    slugCategory: {
       type: String,
       required: true,
     },
