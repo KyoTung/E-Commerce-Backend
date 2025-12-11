@@ -12,6 +12,12 @@ const createProduct = asyncHandler(async (req, res) => {
     if (req.body.title) {
       req.body.slug = slugify(req.body.title);
     }
+     if (req.body.category) {
+      req.body.slugCategory = slugify(req.body.category);
+    }
+    if (req.body.brand) {
+      req.body.slugBrand = slugify(req.body.brand);
+    }
     
     const newProduct = await Product.create(req.body);
     res.json({
@@ -47,6 +53,33 @@ const getAllProduct = asyncHandler(async (req, res) => {
     let queryStr = JSON.stringify(queryObj);
     queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, (match) => `$${match}`);
     const parsedQueryObj = JSON.parse(queryStr);
+
+    if (parsedQueryObj['basePrice[$gte]']) {
+        parsedQueryObj.basePrice = { 
+            ...parsedQueryObj.basePrice, 
+            $gte: Number(parsedQueryObj['basePrice[$gte]']) // Ép kiểu về số
+        };
+        delete parsedQueryObj['basePrice[$gte]']; // Xóa key sai
+    }
+    
+    if (parsedQueryObj['basePrice[$lte]']) {
+        parsedQueryObj.basePrice = { 
+            ...parsedQueryObj.basePrice, 
+            $lte: Number(parsedQueryObj['basePrice[$lte]']) // Ép kiểu về số
+        };
+        delete parsedQueryObj['basePrice[$lte]']; // Xóa key sai
+    }
+
+    if (req.query.title) {
+        parsedQueryObj.title = { 
+            $regex: req.query.title, 
+            $options: "i" // "i" = case-insensitive (không phân biệt hoa thường)
+        };
+    }
+
+
+    console.log("Final Query:", JSON.stringify(parsedQueryObj, null, 2));
+
 
     // Tạo truy vấn
     let query = Product.find(parsedQueryObj);

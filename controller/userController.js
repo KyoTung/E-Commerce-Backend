@@ -15,8 +15,15 @@ dotenv.config();
 // Create a new user
 const createUser = asyncHandler(async (req, res) => {
   const email = req.body.email;
+  const phone = req.body.phone; 
+
   const findUser = await User.findOne({ email: email });
-  if (!findUser) {
+  
+
+  const findMobile = await User.findOne({ phone: phone });
+
+  if (!findUser && !findMobile) {
+  
     const newUser = await User.create(req.body);
     res.json({
       message: "User created successfully",
@@ -24,7 +31,12 @@ const createUser = asyncHandler(async (req, res) => {
       user: newUser,
     });
   } else {
-    throw new Error("User already exists");
+    if (findUser) {
+      throw new Error("User already exists (Email is taken)");
+    }
+    if (findMobile) {
+      throw new Error("Phone number already exists");
+    }
   }
 });
 
