@@ -30,8 +30,7 @@ const CLIENT_ORIGIN = 'http://localhost:3000'; // React dev
 app.use(
   cors({
     origin: [
-    "http://localhost:3000",              
-    "http://localhost:3001",              
+    "http://localhost:3000",                           
     "https://nest-store-commerce.vercel.app" 
   ],      
     credentials: true,            
