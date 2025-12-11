@@ -66,7 +66,7 @@ userSchema.methods.isPasswordMatched = async function(enterPassword) {
 userSchema.methods.createResetToken = async function(){
   const resetToken = crypto.randomBytes(32).toString("hex");
   this.passwordResetToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-  this.passwordResetExpires = Date.now() + 30*60*1000;  //10 minute
+  this.passwordResetExpires = Date.now() + 30*60*1000;
   return resetToken
 }
 

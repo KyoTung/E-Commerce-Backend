@@ -11,6 +11,7 @@ var cartSchema = new mongoose.Schema(
         },
         count: Number,
         color: String,
+        storage: String,
         price: Number,
       },
     ],
@@ -36,5 +37,4 @@ var cartSchema = new mongoose.Schema(
   }
 );
 
-//Export the model
 module.exports = mongoose.model("Cart", cartSchema);

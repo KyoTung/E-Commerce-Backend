@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-var productSchema = new mongoose.Schema(
+const productSchema = new mongoose.Schema(
   {
     title: {
       type: String,
@@ -13,14 +13,26 @@ var productSchema = new mongoose.Schema(
       lowercase: true,
       unique: true,
     },
-    description: {
-      type: String,
-    },
-    price: {
+    description: String,
+
+    basePrice: {
       type: Number,
       required: true,
     },
+
+    images: [
+      {
+        url: String,
+        asset_id: String,
+        public_id: String,
+      },
+    ],
+
     brand: {
+      type: String,
+      required: true,
+    },
+    slugBrand: {
       type: String,
       required: true,
     },
@@ -28,31 +40,57 @@ var productSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    quantity: {
-      type: Number,
+    slugCategory: {
+      type: String,
       required: true,
-      select: false,
     },
-    images: {
-      type: Array,
+
+    variants: [
+      {
+        color: { type: String },
+        storage: { type: String },
+        price: { type: Number },
+        quantity: { type: Number },
+        images: [ {
+        url: String,
+        asset_id: String,
+        public_id: String,
+      }],
+      },
+    ],
+
+    tags: [{ type: String }],
+
+    specifications: {
+      screen: String,
+      processor: String,
+      storage: String,
+      ram: String,
+      battery: String,
+      os: String,
+      frontCamera: String,
+      rearCamera: String,
+      sim: String,
+      design: String,
     },
-    sold: {
-      type: Number,
-      default: 0,
-      select: false,
-    },
-    color: [],
-    tags: [],
+
     rating: [
       {
-        star: Number,
+        star: { type: Number, required: true },
         comment: String,
         posteby: { type: mongoose.Schema.ObjectId, ref: "User" },
+        createdAt: { type: Date, default: Date.now },
       },
     ],
     totalRating: {
       type: Number,
       default: 0,
+    },
+
+    sold: {
+      type: Number,
+      default: 0,
+      select: false,
     },
   },
   {

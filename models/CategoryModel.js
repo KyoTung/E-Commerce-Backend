@@ -9,7 +9,14 @@ var categorySchema = new mongoose.Schema(
       unique:true,
       index:true
     },
+    slug: {
+      type: String,
+      required: true,
+      lowercase: true,
+      unique: true,
+    },
   },
+  
   {timestamps: true,}
 );
 

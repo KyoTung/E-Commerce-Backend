@@ -120,14 +120,50 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 });
 
-const getOrder = asyncHandler(async (req, res) => {
+const getAllOrders = asyncHandler(async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const getOrderUser = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   validateMongoDbId(_id);
   try {
     const findUser = await User.findById(_id);
-    const order = await Order.findOne({ orderby: findUser._id })
-      .populate("products.product")
-      .exec();
+    const order = await Order.find({ orderby: findUser._id })
+    .populate({
+      path: 'products.product',
+      select: 'title images price color'
+    })
+    .sort({ createdAt: -1 });
+
+    if (order == null) {
+      res.json({
+        message: "No orders yet",
+        order,
+      });
+    } else {
+      res.json(order);
+    }
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const getOrderDetail = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  validateMongoDbId(id);
+  try {
+    const order = await Order.findById(id)
+    .populate({
+      path: 'products.product',
+      select: 'name images price'
+    })
+    .exec();
 
     if (order == null) {
       res.json({
@@ -189,4 +225,4 @@ const updateStatus = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = { createOrder, getOrder, updateStatus };
+module.exports = { createOrder, getOrderUser, updateStatus, getAllOrders, getOrderDetail };

@@ -18,6 +18,8 @@ const {
 } = require("../middleware/uploadImage");
 
 const router = express.Router();
+
+
 router.put(
   "/upload-images",
   authMiddleware,
@@ -34,6 +36,8 @@ router.put("/rating", authMiddleware, rating);
 
 router.put("/:id", authMiddleware, isAdmin, updateProduct);
 router.delete("/:id", authMiddleware, isAdmin, deleteProduct);
-router.delete("/delete-images/:id", authMiddleware, isAdmin, deleteImagesProduct);
+router.delete("/delete-images/:id/:publicIdToDelete", authMiddleware, isAdmin, deleteImagesProduct);
 
 module.exports = router;
+
+

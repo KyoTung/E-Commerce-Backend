@@ -14,7 +14,7 @@ const createCoupon = asyncHandler(async(req, res) =>{
 
 const getAllCoupon = asyncHandler(async(req, res) =>{
     try{
-        const allCoupon = await Coupon.find();
+        const allCoupon = await Coupon.find().sort({ createdAt: -1 });
         res.json(allCoupon);
     } catch(error){
         throw new Error(error);

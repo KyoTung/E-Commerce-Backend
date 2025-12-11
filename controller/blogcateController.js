@@ -1,10 +1,13 @@
 const BlogCategory = require("../models/BlogCateModel");
 const asyncHandler = require("express-async-handler");
 const validateMongoDbId = require("../utils/validateMongoDB");
-
+const slugify = require("slugify");
 
 const createBlogcategory = asyncHandler(async (req, res) => {
   try {
+    if (req.body.title) {
+          req.body.slug = slugify(req.body.title);
+        }
     const blogCategory = await BlogCategory.create(req.body);
     res.json({
       message: "BlogCategory created successfully",
@@ -28,7 +31,7 @@ const updateBlogcategory = asyncHandler(async(req, res) =>{
 
 const getAllBlogCategory =  asyncHandler(async(req, res) =>{
     try{
-        const allBlogCate = await BlogCategory.find();
+        const allBlogCate = await BlogCategory.find().sort({ createdAt: -1 });
         res.json(allBlogCate)
     } catch (error) {
     throw new Error(error);

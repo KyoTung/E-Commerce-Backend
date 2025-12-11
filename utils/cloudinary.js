@@ -9,19 +9,38 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const cloudinaryUploadImage = async(fileUpload) =>{
-    return new Promise((resolve, reject) => {
-        cloudinary.uploader.upload(fileUpload, (error, result) => {
-            resolve({
-                url:result.secure_url,
-                asset_id:result.asset_id,
-                public_id:result.public_id
-            }, {
-                resource_type:"auto"
-            });
+// const cloudinaryUploadImage = async(fileUpload) =>{
+//     return new Promise((resolve, reject) => {
+//         cloudinary.uploader.upload(fileUpload, (error, result) => {
+//             resolve({
+//                 url:result.secure_url,
+//                 asset_id:result.asset_id,
+//                 public_id:result.public_id
+//             }, {
+//                 resource_type:"auto"
+//             });
+//         });
+//     });
+// }
+
+const cloudinaryUploadImage = async (fileUpload) => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload(
+      fileUpload,
+      { resource_type: "auto" }, // đúng vị trí
+      (error, result) => {
+        if (error) return reject(error);
+        if (!result) return reject(new Error("Upload failed, no result returned"));
+
+        resolve({
+          url: result.secure_url,
+          asset_id: result.asset_id,
+          public_id: result.public_id,
         });
-    });
-}
+      }
+    );
+  });
+};
 
 const cloudinaryDeleteImage = async(fileDelete) =>{
     return new Promise((resolve, reject) => {
