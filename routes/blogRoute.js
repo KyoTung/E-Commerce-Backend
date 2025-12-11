@@ -9,7 +9,8 @@ const {
   deleteBlog,
   likeBlog,
   dislikeBlog,
-  uploadImages
+  uploadImages,
+  deleteImages
 } = require("../controller/blogController");
 const {
   uploadPhoto,
@@ -20,7 +21,7 @@ const router = express.Router();
 
 router.post("/", authMiddleware, isAdmin, createBlog);
 router.put(
-  "/upload/:id",
+  "/upload",
   authMiddleware,
   isAdmin,
   uploadPhoto.array("images", 10),
@@ -33,6 +34,7 @@ router.put("/:id", authMiddleware, isAdmin, updateBlog);
 router.get("/:id", getBlog);
 router.get("/", getAllBlogs);
 router.delete("/:id", authMiddleware, isAdmin, deleteBlog);
+router.delete("/delete-images/:id/:publicIdToDelete", authMiddleware, isAdmin, deleteImages);
 
 
 

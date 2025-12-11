@@ -1,36 +1,32 @@
-const User = require("../models/UserModel")
-const jwt = require("jsonwebtoken")
-const asyncHandler = require("express-async-handler")
-const dotenv = require("dotenv");
-dotenv.config();
 
-const authMiddleware = asyncHandler(async(req, res, next)=>{
-   let token;
-   if(req?.headers?.authorization?.startsWith("Bearer")){
-      token = req.headers.authorization.split(" ")[1];
-      try{
-        if(token){
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            const user = await User.findById(decoded?.id);
-            req.user = user;
-            next();
-        }
-      } catch(error){
-        throw new Error("Not Authorized token exired. Please login again");
-      }
-   } else {
-    throw new Error("There is no token attached to header")
-   }
-})
+// middleware/auth.js
+const jwt = require('jsonwebtoken');
+const asyncHandler = require('express-async-handler');
+const User = require('../models/UserModel');
 
-const isAdmin = asyncHandler(async(req, res, next)=>{
-   const {email} = req.user
-   const adminUser =await User.findOne({email})
-   if(adminUser.role !== "admin"){
-     throw new Error("You are not an admin")
-   } else{
+const authMiddleware = asyncHandler(async (req, res, next) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ message: 'Unauthorized: missing token' });
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET); // verify AT
+    const user = await User.findById(payload.sub).select('_id email role fullName isBlock').lean();
+    if (!user) return res.status(401).json({ message: 'Unauthorized: user not found' });
+    if (user.isBlock) return res.status(403).json({ message: 'Forbidden: user blocked' });
+
+    req.user = user; // set minimal user info
     next();
-   }
-})
+  } catch (err) {
+    return res.status(401).json({ message: 'Token expired or invalid' });
+  }
+});
 
-module.exports = {authMiddleware, isAdmin}
+const isAdmin = asyncHandler(async (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden: admin only' });
+  }
+  next();
+});
+
+module.exports = { authMiddleware, isAdmin };
