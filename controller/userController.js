@@ -19,8 +19,12 @@ const createUser = asyncHandler(async (req, res) => {
 
   const findUser = await User.findOne({ email: email });
   
-
-  const findMobile = await User.findOne({ phone: phone });
+if (mobile) {
+    const findMobile = await User.findOne({ mobile: mobile });
+    if (findMobile) {
+      throw new Error("Phone number already exists");
+    }
+  }
 
   if (!findUser && !findMobile) {
   
