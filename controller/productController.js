@@ -168,29 +168,38 @@ const addToWishList = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { prdId } = req.body;
   validateMongoDbId(_id);
+  
   try {
     const user = await User.findById(_id);
     const alreadyadded = user.wishlist.find((id) => id.toString() === prdId);
+    
     if (alreadyadded) {
-      let user = await User.findOneAndUpdate(
+      let updatedUser = await User.findByIdAndUpdate(
         _id,
-        { $pull: { wishlist: prdId } },
-        { new: true }
+        {
+          $pull: { wishlist: prdId },
+        },
+        {
+          new: true,
+        }
       );
-      res.json(user);
+      res.json(updatedUser);
     } else {
-      let user = await User.findOneAndUpdate(
+      let updatedUser = await User.findByIdAndUpdate(
         _id,
-        { $push: { wishlist: prdId } },
-        { new: true }
+        {
+          $push: { wishlist: prdId },
+        },
+        {
+          new: true,
+        }
       );
-      res.json(user);
+      res.json(updatedUser);
     }
   } catch (error) {
     throw new Error(error);
   }
 });
-
 const rating = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { star, comment, prdId } = req.body;
