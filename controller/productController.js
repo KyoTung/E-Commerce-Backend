@@ -244,17 +244,27 @@ const rating = asyncHandler(async (req, res) => {
 const uploadImagesProduct = asyncHandler(async (req, res) => {
   try {
     const uploadImage = (path) => cloudinaryUploadImage(path, "images");
-    const urls = [];
     const files = req.files;
-    for (const file of files) {
-      const { path } = file;
-      const newPath = await uploadImage(path);
-      urls.push(newPath);
-      fs.unlinkSync(path);
-    }
-    const images = urls.map((file) => {
-      return file;
-    });
+
+    const images = await Promise.all(
+      files.map(async (file) => {
+        const { path } = file;
+        try {
+          const newPath = await uploadImage(path);
+          return newPath;
+        } catch (error) {
+          console.error("Lỗi upload ảnh:", error);
+          throw error; 
+        } finally {
+          try {
+            if (fs.existsSync(path)) fs.unlinkSync(path);
+          } catch (e) {
+            console.log("Lỗi xóa file tạm:", e);
+          }
+        }
+      })
+    );
+
     res.json(images);
   } catch (error) {
     throw new Error(error);

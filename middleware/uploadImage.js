@@ -1,12 +1,16 @@
 const multer = require("multer");
 const sharp = require("sharp");
 const path = require("path");
-const fs = require("fs")
+const fs = require("fs");
 
-// Cấu hình lưu file tạm thời
 const multerStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, "../public/images"));
+
+    const dir = path.join(__dirname, "../public/images");
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
@@ -14,7 +18,6 @@ const multerStorage = multer.diskStorage({
   },
 });
 
-// Lọc file chỉ cho phép ảnh
 const multerFilter = (req, file, cb) => {
   if (file.mimetype.startsWith("image/")) {
     cb(null, true);
@@ -23,7 +26,6 @@ const multerFilter = (req, file, cb) => {
   }
 };
 
-// Khởi tạo middleware upload
 const uploadPhoto = multer({
   storage: multerStorage,
   fileFilter: multerFilter,
@@ -36,45 +38,66 @@ const productImgResize = async (req, res, next) => {
 
   await Promise.all(
     req.files.map(async (file) => {
-      const outputPath = path.join(__dirname, "../public/images/products", file.filename);
+
+      const uploadPath = path.join(__dirname, "../public/images/products/");
+
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      const outputFileName = `resized-${file.filename}`;
+      const outputPath = path.join(uploadPath, outputFileName);
+
       await sharp(file.path)
-        .resize(500, 500)
+        .resize(300, 300) 
         .toFormat("jpeg")
         .jpeg({ quality: 90 })
         .toFile(outputPath);
 
-        //file.path = outputPath;
+      try {
+          fs.unlinkSync(file.path); 
+      } catch (e) { console.log("Lỗi xóa file gốc:", e) }
 
-        fs.unlinkSync(outputPath)
-        
+
+      file.path = outputPath;
+      file.filename = outputFileName; 
+      
     })
   );
 
   next();
 };
-
 
 const blogImgResize = async (req, res, next) => {
   if (!req.files || req.files.length === 0) return next();
 
   await Promise.all(
     req.files.map(async (file) => {
-      const outputPath = path.join(__dirname, "../public/images/blogs", file.filename);
+      const uploadPath = path.join(__dirname, "../public/images/blogs/");
+      
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      const outputFileName = `resized-${file.filename}`;
+      const outputPath = path.join(uploadPath, outputFileName);
+
       await sharp(file.path)
-        .resize(500, 500)
+        .resize(300, 300)
         .toFormat("jpeg")
         .jpeg({ quality: 90 })
         .toFile(outputPath);
 
-        //file.path = outputPath;
-
-        fs.unlinkSync(outputPath)
-        
+      try {
+          fs.unlinkSync(file.path);
+      } catch (e) { console.log(e) }
+      
+      file.path = outputPath;
+      file.filename = outputFileName;
     })
   );
 
   next();
 };
-
 
 module.exports = { uploadPhoto, productImgResize, blogImgResize };
