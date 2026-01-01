@@ -6,7 +6,7 @@ const cookieParser = require("cookie-parser");
 const morgan = require("morgan")
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 5000;
 
 const connectDB = require("./config/connectDB");
 const authRouter = require("./routes/authRoute");
@@ -44,6 +44,11 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 // Kết nối db
 connectDB();
+
+//api de ping den render tranh sleep time
+app.get('/ping', (req, res) => {
+    return res.send('Pong');
+});
 
 // Routes
 app.use("/api/user", authRouter);

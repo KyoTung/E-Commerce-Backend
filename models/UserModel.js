@@ -20,6 +20,7 @@ var userSchema = new mongoose.Schema(
     phone: {
       type: String,
       unique: true,
+      sparse: true
     },
     role: {
       type: String,
