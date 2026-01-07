@@ -135,11 +135,11 @@ const getOrderUser = asyncHandler(async (req, res) => {
   try {
     const findUser = await User.findById(_id);
     const order = await Order.find({ orderby: findUser._id })
-    .populate({
-      path: 'products.product',
-      select: 'title images price color'
-    })
-    .sort({ createdAt: -1 });
+      .populate({
+        path: "products.product",
+        select: "title images price color",
+      })
+      .sort({ createdAt: -1 });
 
     if (order == null) {
       res.json({
@@ -159,11 +159,11 @@ const getOrderDetail = asyncHandler(async (req, res) => {
   validateMongoDbId(id);
   try {
     const order = await Order.findById(id)
-    .populate({
-      path: 'products.product',
-      select: 'name images price'
-    })
-    .exec();
+      .populate({
+        path: "products.product",
+        select: "name images price",
+      })
+      .exec();
 
     if (order == null) {
       res.json({
@@ -224,5 +224,60 @@ const updateStatus = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
+const cancelOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user; // Lấy ID user đang đăng nhập từ middleware
 
-module.exports = { createOrder, getOrderUser, updateStatus, getAllOrders, getOrderDetail };
+  validateMongoDbId(id);
+
+  try {
+    const findOrder = await Order.findById(id);
+
+    if (!findOrder) {
+      throw new Error("Không tìm thấy đơn hàng");
+    }
+
+    // --- 1. BẢO MẬT: Kiểm tra xem đơn hàng này có phải của User đang login không ---
+    // So sánh ID người đặt (orderby) với ID người đang login (_id)
+    if (findOrder.orderby.toString() !== _id.toString()) {
+      res.status(403);
+      throw new Error("Bạn không có quyền hủy đơn hàng của người khác");
+    }
+
+    // --- 2. LOGIC: Chỉ cho phép hủy khi trạng thái hợp lệ (Allow List) ---
+    // Yêu cầu: Chỉ "Not Processed" và "Confirmed" mới được hủy
+    const allowedStatusToCancel = ["Not Processed", "Confirmed"];
+    
+    if (!allowedStatusToCancel.includes(findOrder.orderStatus)) {
+      res.status(400);
+      throw new Error(
+        `Không thể hủy đơn hàng đang ở trạng thái: ${findOrder.orderStatus}. Chỉ có thể hủy khi đơn hàng chưa được xử lý hoặc mới xác nhận.`
+      );
+    }
+
+    // Cập nhật trạng thái
+    const cancelledOrder = await Order.findByIdAndUpdate(
+      id,
+      {
+        orderStatus: "Cancelled",
+      },
+      { new: true }
+    );
+
+    res.json({
+      message: "Hủy đơn hàng thành công",
+      cancelledOrder,
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+module.exports = {
+  createOrder,
+  getOrderUser,
+  updateStatus,
+  getAllOrders,
+  getOrderDetail,
+  cancelOrder,
+};
