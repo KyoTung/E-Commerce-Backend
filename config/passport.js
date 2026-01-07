@@ -16,8 +16,7 @@ passport.use(
         const user = await User.findOne({ email: profile.emails[0].value });
 
         if (user) {
-          // Trường hợp 1: Đã có tài khoản -> Cho qua
-          // (Có thể update thêm avatar nếu muốn)
+          // Trường hợp 1: Đã có tài khoản -> Cho qua đăng nhập
           return done(null, user);
         } else {
           // Trường hợp 2: Chưa có -> Tạo mới

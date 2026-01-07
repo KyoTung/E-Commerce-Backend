@@ -42,8 +42,6 @@ if (phone) {
   }
 });
 
-
-
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
@@ -78,6 +76,36 @@ const loginUser = asyncHandler(async (req, res) => {
     role: user.role,
     token: accessToken,
   });
+});
+
+const loginWithGoogle = asyncHandler(async (req, res) => {
+  const user = req.user;
+
+  if (!user) {
+    return res.redirect(`${process.env.CLIENT_URL}/login`);
+  }
+
+  // 1. Tạo Token 
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  // 2. Cập nhật Refresh Token vào DB 
+  const currentUser = await User.findById(user._id);
+  currentUser.refreshToken = refreshToken;
+  await currentUser.save();
+
+  // 3. Set Cookie Refresh Token 
+  res.cookie("refreshToken", refreshToken, cookieOptions);
+
+  // 4. Chuyển hướng về Frontend
+  res.redirect(
+    `${process.env.CLIENT_URL}/login-success?` +
+    `token=${accessToken}` + // Access Token
+    `&id=${currentUser._id}` +
+    `&role=${currentUser.role}` +
+    `&email=${currentUser.email}` +
+    `&name=${encodeURIComponent(currentUser.fullName)}`
+  );
 });
 
 //REFRESH TOKEN
@@ -394,4 +422,5 @@ module.exports = {
   loginAdmin,
   getWishList,
   updateInfo,
+  loginWithGoogle
 };
