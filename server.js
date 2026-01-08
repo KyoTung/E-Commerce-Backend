@@ -29,6 +29,9 @@ app.use(morgan("dev"));
 const CLIENT_ORIGIN = "http://localhost:3000"; // React dev
 
 app.use(passport.initialize());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // CORS cho tất cả route
 app.use(
@@ -44,10 +47,8 @@ app.use(
 
   })
 );
-app.use(bodyParser.json());
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
+
+
 // Kết nối db
 connectDB();
 

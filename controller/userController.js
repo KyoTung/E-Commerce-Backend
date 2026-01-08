@@ -113,7 +113,7 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
 
 //REFRESH TOKEN
 const handleRefreshToken = asyncHandler(async (req, res) => {
-  const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
+  const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
 
   if (!refreshToken) return res.status(401).json({ message: "Vui lòng đăng nhập" });
 
