@@ -144,11 +144,14 @@ const handleRefreshToken = asyncHandler(async (req, res) => {
     user.refreshToken = newRefreshToken;
     await user.save();
 
-    // Gửi Cookie Mới
+    // Gửi Cookie Mới (Vẫn giữ dòng này để hỗ trợ App khác nếu cần)
     res.cookie("refreshToken", newRefreshToken, cookieOptions);
 
-    // Trả về Access Token Mới
-    return res.json({ accessToken: newAccessToken });
+    // Trả về cả refreshToken mới trong JSON để Frontend lấy
+    return res.json({ 
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken // <--- THÊM CÁI NÀY
+    });
   } catch (err) {
     // Token hết hạn hoặc không hợp lệ
     res.clearCookie("refreshToken", { ...cookieOptions, maxAge: 0 });
