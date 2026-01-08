@@ -19,12 +19,25 @@ const {
   loginAdmin,
   getWishList,
   updateInfo,
+  loginWithGoogle
 } = require("../controller/userController");
-
+const passport = require("passport");
 
 router.post("/register", createUser);
 router.post('/forgot-password-token', forgotPasswordToken );
 router.put('/reset-password/:token', resetPassword );
+
+router.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+// Route Callback
+router.get(
+  "/auth/google/callback",
+  passport.authenticate("google", { session: false }), // Middleware Passport chạy trước
+  loginWithGoogle // Sau đó mới đến Controller của mình
+);
 
 router.put('/password',authMiddleware, updatePassword);
 router.post("/login", loginUser);
