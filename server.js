@@ -24,16 +24,16 @@ const colorRoute = require("./routes/colorRoute");
 const enquiryRoute = require("./routes/enquiryRoute");
 require("./config/passport");
 
-// Middleware
-app.use(morgan("dev"));
-const CLIENT_ORIGIN = "http://localhost:3000"; // React dev
 
-app.use(passport.initialize());
 app.use(express.json());
+app.use(morgan("dev"));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(passport.initialize());
+
 
 // CORS cho tất cả route
+// Middleware CORS
 app.use(
   cors({
     origin: [
