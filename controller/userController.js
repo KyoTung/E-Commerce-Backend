@@ -76,6 +76,7 @@ const loginUser = asyncHandler(async (req, res) => {
     email: user.email,
     role: user.role,
     token: accessToken,
+    refreshToken: refreshToken,
   });
 });
 
@@ -112,21 +113,18 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
 
 //REFRESH TOKEN
 const handleRefreshToken = asyncHandler(async (req, res) => {
-  const rt = req.cookies?.refreshToken;
-  const refreshToken = req.body.refreshToken || cookie?.refreshToken;
-  
-  if (!rt) return res.status(401).json({ message: "Vui lòng đăng nhập" });
-  if (!refreshToken && req.body.refreshToken) {
-    refreshToken = req.body.refreshToken;
-  }
+  const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
+
+  if (!refreshToken) return res.status(401).json({ message: "Vui lòng đăng nhập" });
+
   try {
     // Verify token
-    const decoded = jwt.verify(rt, process.env.JWT_REFRESH_SECRET);
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
     const user = await User.findById(decoded.id || decoded.sub);
 
     // Phát hiện token bị dùng lại hoặc user không khớp
-    if (!user || user.refreshToken !== rt) {
+    if (!user || user.refreshToken !== refreshToken) {
       // if (user) {
       //   user.refreshToken = null;
       //   await user.save();
