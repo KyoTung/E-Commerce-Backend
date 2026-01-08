@@ -7,6 +7,7 @@ const morgan = require("morgan");
 const passport = require("passport");
 const app = express();
 const PORT = process.env.PORT || 5000;
+const bodyParser = require('body-parser');
 
 const connectDB = require("./config/connectDB");
 const authRouter = require("./routes/authRoute");
@@ -39,6 +40,7 @@ app.use(
     exposedHeaders: [],
   })
 );
+app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
