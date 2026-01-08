@@ -3,7 +3,10 @@ const Product = require("../models/ProductModel");
 const Coupon = require("../models/CouponModel");
 const Cart = require("../models/CartModel");
 const asyncHandler = require("express-async-handler");
-const { generateAccessToken, generateRefreshToken  } = require("../config/jwtToken");
+const {
+  generateAccessToken,
+  generateRefreshToken,
+} = require("../config/jwtToken");
 const validateMongoDbId = require("../utils/validateMongoDB");
 const jwt = require("jsonwebtoken");
 const sendEmail = require("./emailController");
@@ -15,11 +18,11 @@ dotenv.config();
 // Create a new user
 const createUser = asyncHandler(async (req, res) => {
   const email = req.body.email;
-  const phone = req.body?.phone; 
+  const phone = req.body?.phone;
 
   const findUser = await User.findOne({ email: email });
 
-if (phone) {
+  if (phone) {
     const findMobile = await User.findOne({ phone: phone });
     if (findMobile) {
       throw new Error("Phone number already exists");
@@ -27,7 +30,6 @@ if (phone) {
   }
 
   if (!findUser) {
-  
     const newUser = await User.create(req.body);
     res.json({
       message: "User created successfully",
@@ -38,7 +40,6 @@ if (phone) {
     if (findUser) {
       throw new Error("User already exists (Email is taken)");
     }
-  
   }
 });
 
@@ -85,26 +86,27 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
     return res.redirect(`${process.env.CLIENT_URL}/login`);
   }
 
-  // 1. Tạo Token 
+  // 1. Tạo Token
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
 
-  // 2. Cập nhật Refresh Token vào DB 
+  // 2. Cập nhật Refresh Token vào DB
   const currentUser = await User.findById(user._id);
   currentUser.refreshToken = refreshToken;
   await currentUser.save();
 
-  // 3. Set Cookie Refresh Token 
+  // 3. Set Cookie Refresh Token
   res.cookie("refreshToken", refreshToken, cookieOptions);
 
   // 4. Chuyển hướng về Frontend
   res.redirect(
     `${process.env.CLIENT_URL}/login-success?` +
-    `token=${accessToken}` + // Access Token
-    `&id=${currentUser._id}` +
-    `&role=${currentUser.role}` +
-    `&email=${currentUser.email}` +
-    `&name=${encodeURIComponent(currentUser.fullName)}`
+      `token=${accessToken}` + // Access Token
+      `&refreshToken=${refreshToken}` + // Refresh Token
+      `&id=${currentUser._id}` +
+      `&role=${currentUser.role}` +
+      `&email=${currentUser.email}` +
+      `&name=${encodeURIComponent(currentUser.fullName)}`
   );
 });
 
@@ -112,9 +114,10 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
 const handleRefreshToken = asyncHandler(async (req, res) => {
   const rt = req.cookies?.refreshToken;
 
-  if (!rt)
-    return res.status(401).json({ message: "Vui lòng đăng nhập" });
-
+  if (!rt) return res.status(401).json({ message: "Vui lòng đăng nhập" });
+  if (!refreshToken && req.body.refreshToken) {
+    refreshToken = req.body.refreshToken;
+  }
   try {
     // Verify token
     const decoded = jwt.verify(rt, process.env.JWT_REFRESH_SECRET);
@@ -123,7 +126,6 @@ const handleRefreshToken = asyncHandler(async (req, res) => {
 
     // Phát hiện token bị dùng lại hoặc user không khớp
     if (!user || user.refreshToken !== rt) {
-      
       // if (user) {
       //   user.refreshToken = null;
       //   await user.save();
@@ -422,5 +424,5 @@ module.exports = {
   loginAdmin,
   getWishList,
   updateInfo,
-  loginWithGoogle
+  loginWithGoogle,
 };
