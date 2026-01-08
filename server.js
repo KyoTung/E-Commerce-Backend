@@ -33,7 +33,6 @@ app.use(passport.initialize());
 // CORS cho tất cả route
 app.use(
   cors({
-<<<<<<< HEAD
     origin: [
     "http://localhost:3000",                           
     "https://nest-store-commerce.vercel.app" 
@@ -42,13 +41,7 @@ app.use(
     methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
     allowedHeaders: ['Content-Type','Authorization'],
     exposedHeaders: [],            
-=======
-    origin: CLIENT_ORIGIN,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    exposedHeaders: [],
->>>>>>> development
+
   })
 );
 app.use(bodyParser.json());
