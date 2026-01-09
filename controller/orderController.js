@@ -163,7 +163,7 @@ const getOrderDetail = asyncHandler(async (req, res) => {
     const order = await Order.findById(id)
       .populate({
         path: "products.product",
-        select: "name images price",
+        select: "title images price color",
       })
       .exec();
 
