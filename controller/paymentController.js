@@ -162,7 +162,7 @@ const simulateSuccess = asyncHandler(async (req, res) => {
   order.isPaid = true;
   order.paidAt = Date.now();
   order.paymentIntent = {
-    method: "ZaloPay (Simulated)", // Đánh dấu là giả lập để dễ phân biệt
+    method: "ZaloPay", // Đánh dấu là giả lập để dễ phân biệt
     status: "paid",
     amount: order.total,
     currency: "VND",
