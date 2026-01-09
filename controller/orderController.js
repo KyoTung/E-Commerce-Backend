@@ -6,6 +6,8 @@ const Cart = require("../models/CartModel");
 const asyncHandler = require("express-async-handler");
 const validateMongoDbId = require("../utils/validateMongoDB");
 var uniqid = require("uniqid");
+const CryptoJS = require("crypto-js");
+const moment = require("moment");
 
 const createOrder = asyncHandler(async (req, res) => {
   const { paymentMethod, couponApplied, customerInfo } = req.body;
@@ -312,6 +314,89 @@ const deleteOrder = asyncHandler(async (req, res) => {
   }
 });
 
+const repayOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const order = await Order.findById(id);
+
+  if (!order) throw new Error("Không tìm thấy đơn hàng");
+  if (order.isPaid) throw new Error("Đơn hàng này đã thanh toán rồi");
+
+  // --- GỌI ZALOPAY TẠO URL MỚI ---
+  const embed_data = { redirecturl: `${process.env.CLIENT_URL}/payment-result` };
+  const items = order.orderItems; // Lấy lại item cũ
+  const transID = Math.floor(Math.random() * 1000000); // Tạo mã giao dịch mới cho Zalo
+
+  const orderZalo = {
+    app_id: config.app_id,
+    app_trans_id: `${moment().format("YYMMDD")}_${transID}`, // Mã giao dịch mới
+    app_user: order.user ? order.user.toString() : "guest",
+    app_time: Date.now(),
+    item: JSON.stringify(items),
+    embed_data: JSON.stringify(embed_data),
+    amount: order.totalPrice,
+    description: `Thanh toan don hang #${id}`,
+    bank_code: "", // Để trống để cho người dùng chọn ngân hàng
+    callback_url: `${process.env.BASE_URL}/api/order/zalopay_callback` // URL backend nhận kết quả
+  };
+
+  // Tạo chữ ký (MAC)
+  const data = config.app_id + "|" + orderZalo.app_trans_id + "|" + orderZalo.app_user + "|" + orderZalo.amount + "|" + orderZalo.app_time + "|" + orderZalo.embed_data + "|" + orderZalo.item;
+  orderZalo.mac = CryptoJS.HmacSHA256(data, config.key1).toString();
+
+  try {
+      const result = await axios.post(config.endpoint, null, { params: orderZalo });
+      
+      // Cập nhật lại app_trans_id mới vào đơn hàng (để tracking sau này nếu cần)
+      order.paymentResult = { 
+          id: orderZalo.app_trans_id, 
+          status: "Pending", 
+          update_time: Date.now() 
+      };
+      await order.save();
+
+      return res.status(200).json({ paymentUrl: result.data.order_url });
+  } catch (err) {
+      throw new Error("Lỗi kết nối ZaloPay");
+  }
+});
+
+const switchToCOD = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  // 1. Tìm đơn hàng
+  const order = await Order.findById(id);
+
+  if (!order) {
+    res.status(404);
+    throw new Error("Không tìm thấy đơn hàng");
+  }
+
+  // 2. Chỉ cho phép đổi nếu đơn hàng chưa thanh toán
+  if (order.status === "not_paid") {
+    res.status(400);
+    throw new Error("Đơn hàng này đã được thanh toán online rồi, không thể đổi sang COD!");
+  }
+
+  // 3. Cập nhật thông tin
+  order.paymentMethod = "cod";
+  order.paymentResult = { // Xóa thông tin giao dịch lỗi cũ (nếu muốn sạch data)
+      status: "Switched to cod",
+      update_time: Date.now()
+  };
+  order.paymentStatus = "not_paid";
+  order.paymentIntent = {
+      id: uniqid(),
+      method: "cod",
+      amount: order.total,
+      currency: "VND",
+      status: "pending"
+  };
+  
+  const updatedOrder = await order.save();
+
+  res.json(updatedOrder);
+});
+
 module.exports = {
   createOrder,
   getOrderUser,
@@ -319,5 +404,7 @@ module.exports = {
   getAllOrders,
   getOrderDetail,
   cancelOrder,
-  deleteOrder
+  deleteOrder,
+  repayOrder,
+  switchToCOD
 };
