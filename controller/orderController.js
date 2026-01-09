@@ -16,7 +16,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
   try {
     // Kiểm tra phương thức thanh toán
-    const allowedMethods = ["cod", "bank_transfer", "momo", "vnpay", "paypal", "ZaloPay"];
+    const allowedMethods = ["COD", "bank_transfer", "momo", "vnpay", "paypal", "ZaloPay"];
     if (!paymentMethod || !allowedMethods.includes(paymentMethod)) {
       return res.status(400).json({ error: "Invalid payment method" });
     }
@@ -378,15 +378,15 @@ const switchToCOD = asyncHandler(async (req, res) => {
   }
 
   // 3. Cập nhật thông tin
-  order.paymentMethod = "cod";
-  order.paymentResult = { // Xóa thông tin giao dịch lỗi cũ (nếu muốn sạch data)
-      status: "Switched to cod",
+  order.paymentMethod = "COD";
+  order.paymentResult = { // Xóa thông tin giao dịch lỗi cũ
+      status: "Switched to COD",
       update_time: Date.now()
   };
   order.paymentStatus = "not_paid";
   order.paymentIntent = {
       id: uniqid(),
-      method: "cod",
+      method: "COD",
       amount: order.total,
       currency: "VND",
       status: "pending"
