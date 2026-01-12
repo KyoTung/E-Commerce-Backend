@@ -184,6 +184,14 @@ const updateStatus = asyncHandler(async (req, res) => {
   const { status, paymentStatus, paymentIntentStatus } = req.body;
   const { id } = req.params;
   validateMongoDbId(id);
+
+  // 1. Lấy thông tin đơn hàng hiện tại trong DB
+  const currentOrder = await Order.findById(id);
+  if (!currentOrder) {
+    throw new Error("Order not found");
+  }
+
+  // Danh sách các trạng thái hợp lệ
   const allowedOrderStatus = [
     "Not Processed",
     "Confirmed",
@@ -193,31 +201,77 @@ const updateStatus = asyncHandler(async (req, res) => {
     "Delivered",
     "Returned",
   ];
-  const allowedPaymentStatus = [
-    "not_paid",
-    "paid",
-    "failed",
-    "refunded",
-    "authorized",
-  ];
-
-  if (!allowedOrderStatus.includes(status)) {
+  
+  // Kiểm tra xem status gửi lên có nằm trong danh sách cho phép không
+  if (status && !allowedOrderStatus.includes(status)) {
     throw new Error("Invalid order status");
   }
-  if (!allowedPaymentStatus.includes(paymentStatus)) {
-    throw new Error("Invalid payment status");
+
+  // --- LOGIC KIỂM TRA ĐIỀU KIỆN CẬP NHẬT ---
+
+  // 2. Xử lý riêng cho trường hợp HỦY ĐƠN (Cancelled)
+  if (status === "Cancelled") {
+    // Chỉ cho phép hủy nếu đơn hàng đang ở 'Not Processed' hoặc 'Confirmed'
+    if (
+      currentOrder.orderStatus !== "Not Processed" &&
+      currentOrder.orderStatus !== "Confirmed"
+    ) {
+      throw new Error(
+        `Cannot cancel order. Current status is ${currentOrder.orderStatus}. Only orders in 'Not Processed' or 'Confirmed' can be cancelled.`
+      );
+    }
   }
+
+  // 3. Xử lý cập nhật theo tuần tự (Quy trình)
+  // Định nghĩa các bước chuyển đổi hợp lệ (State Machine)
+  // Key là trạng thái hiện tại, Value là mảng các trạng thái được phép chuyển tới
+  const validTransitions = {
+    "Not Processed": ["Confirmed", "Cancelled"],
+    "Confirmed": ["Processing", "Cancelled"],
+    "Processing": ["Dispatched"], // Đang xử lý thì chỉ được sang Đã gửi
+    "Dispatched": ["Delivered"],  // Đã gửi thì chỉ được sang Đã giao
+    "Delivered": ["Returned"],    // Đã giao thì chỉ được sang Trả hàng
+    "Cancelled": [],              // Đã hủy thì không đổi trạng thái được nữa
+    "Returned": [],               // Đã trả thì không đổi trạng thái được nữa
+  };
+
+  // Nếu có gửi status mới lên, kiểm tra xem có đúng luồng không
+  if (status) {
+    // Lấy danh sách trạng thái hợp lệ tiếp theo dựa trên trạng thái hiện tại
+    const allowedNextSteps = validTransitions[currentOrder.orderStatus];
+    
+    // Nếu status mới không nằm trong danh sách cho phép
+    if (!allowedNextSteps.includes(status)) {
+       // *Lưu ý: Nếu status mới == status hiện tại thì bỏ qua lỗi (cho phép cập nhật paymentStatus mà không đổi orderStatus)
+       if (status !== currentOrder.orderStatus) {
+           throw new Error(
+            `Invalid status transition. Current: ${currentOrder.orderStatus}, Request: ${status}. Allowed: ${allowedNextSteps.join(", ")}`
+          );
+       }
+    }
+  }
+
   try {
+    // Thực hiện cập nhật
+    const updateData = {
+      orderStatus: status || currentOrder.orderStatus,
+      paymentStatus: paymentStatus || currentOrder.paymentStatus,
+    };
+
+    // Nếu có update paymentIntent
+    if (paymentIntentStatus) {
+       updateData.paymentIntent = { 
+           ...currentOrder.paymentIntent, // Giữ lại các field cũ của paymentIntent nếu có
+           status: paymentIntentStatus 
+       };
+    }
+
     const updateOrder = await Order.findByIdAndUpdate(
       id,
-      {
-        orderStatus: status,
-        paymentStatus: paymentStatus,
-        paymentIntent: { status: paymentIntentStatus },
-      },
+      updateData,
       { new: true }
     );
-    console.log(req.body);
+
     res.json({
       message: "Update status order successfully",
       updateOrder,
@@ -226,6 +280,7 @@ const updateStatus = asyncHandler(async (req, res) => {
     throw new Error(error);
   }
 });
+
 const cancelOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { _id } = req.user; // Lấy ID user đang đăng nhập từ middleware

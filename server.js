@@ -22,6 +22,7 @@ const orderRoute = require("./routes/orderRoute");
 const cartRoute = require("./routes/cartRoute");
 const colorRoute = require("./routes/colorRoute");
 const enquiryRoute = require("./routes/enquiryRoute");
+const trafficRoute = require("./routes/trafficRoute");
 require("./config/passport");
 
 
@@ -69,7 +70,9 @@ app.use("/api/cart", cartRoute);
 app.use("/api/order", orderRoute);
 app.use("/api/color", colorRoute);
 app.use("/api/enquiry", enquiryRoute);
+app.use("/api/traffic", trafficRoute);
 
+// Middleware xử lý lỗi
 app.use(notFound);
 app.use(errorHandler);
 
