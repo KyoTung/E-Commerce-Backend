@@ -124,7 +124,10 @@ const createOrder = asyncHandler(async (req, res) => {
 
 const getAllOrders = asyncHandler(async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const orders = await Order.find().sort({ createdAt: -1 }).populate({
+      path: "products.product",
+      select: "title images basePrice price color",
+    });
     res.json(orders);
   } catch (error) {
     throw new Error(error);
