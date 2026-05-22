@@ -50,13 +50,12 @@ const cookieOptions = {
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 
-// login user
+// login
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   const user = await User.findOne({ email });
-  if (!user)
-    return res.status(400).json({ message: "Tài khoản không tồn tại!" });
+  if (!user) return res.status(400).json({ message: "Tài khoản không tồn tại!" });
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) return res.status(400).json({ message: "Sai mật khẩu!" });
@@ -67,14 +66,23 @@ const loginUser = asyncHandler(async (req, res) => {
   user.refreshToken = refreshToken;
   await user.save();
 
+  // Cấu hình Cookie bảo mật cao chống XSS và CSRF
+  const cookieOptions = {
+    httpOnly: true, // Mã JavaScript không thể đọc được cookie này
+    secure: process.env.NODE_ENV === "production", // Chỉ gửi qua HTTPS khi deploy
+    sameSite: "strict",
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 ngày khớp với thời gian sống của JWT
+  };
+
   res.cookie("refreshToken", refreshToken, cookieOptions);
 
+  // Trả về Access Token trong JSON body (FE sẽ lưu cái này vào Redux RAM)
   return res.json({
     _id: user._id,
     fullName: user.fullName,
     email: user.email,
     role: user.role,
-    token: accessToken,
+    accessToken: accessToken, 
   });
 });
 
