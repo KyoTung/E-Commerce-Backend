@@ -5,7 +5,6 @@ const fs = require("fs");
 
 const multerStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-
     const dir = path.join(__dirname, "../public/images");
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -29,16 +28,14 @@ const multerFilter = (req, file, cb) => {
 const uploadPhoto = multer({
   storage: multerStorage,
   fileFilter: multerFilter,
-  limits: { fileSize: 2000000 }, // 2MB
+  limits: { fileSize: 2000000 }, // Giới hạn 2MB
 });
-
 
 const productImgResize = async (req, res, next) => {
   if (!req.files || req.files.length === 0) return next();
 
   await Promise.all(
     req.files.map(async (file) => {
-
       const uploadPath = path.join(__dirname, "../public/images/products/");
 
       if (!fs.existsSync(uploadPath)) {
@@ -49,19 +46,21 @@ const productImgResize = async (req, res, next) => {
       const outputPath = path.join(uploadPath, outputFileName);
 
       await sharp(file.path)
-        .resize(300, 300) 
+        // Chỉ giới hạn width 1000px, height tự động tính theo tỉ lệ gốc
+        // withoutEnlargement: true -> Nếu ảnh gốc bé hơn 1000px thì giữ nguyên, không cố phóng to làm mờ ảnh
+        .resize({ width: 1000, withoutEnlargement: true }) 
         .toFormat("jpeg")
-        .jpeg({ quality: 90 })
+        .jpeg({ quality: 90 }) // Chất lượng 90% để tối ưu dung lượng mà vẫn nét
         .toFile(outputPath);
 
       try {
-          fs.unlinkSync(file.path); 
-      } catch (e) { console.log("Lỗi xóa file gốc:", e) }
-
+        fs.unlinkSync(file.path); 
+      } catch (e) { 
+        console.log("Lỗi xóa file gốc:", e); 
+      }
 
       file.path = outputPath;
       file.filename = outputFileName; 
-      
     })
   );
 
@@ -83,14 +82,17 @@ const blogImgResize = async (req, res, next) => {
       const outputPath = path.join(uploadPath, outputFileName);
 
       await sharp(file.path)
-        .resize(300, 300)
+        // Áp dụng tương tự cho ảnh Blog
+        .resize({ width: 1000, withoutEnlargement: true })
         .toFormat("jpeg")
         .jpeg({ quality: 90 })
         .toFile(outputPath);
 
       try {
-          fs.unlinkSync(file.path);
-      } catch (e) { console.log(e) }
+        fs.unlinkSync(file.path);
+      } catch (e) { 
+        console.log(e); 
+      }
       
       file.path = outputPath;
       file.filename = outputFileName;

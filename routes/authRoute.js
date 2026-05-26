@@ -23,6 +23,9 @@ const {
 } = require("../controller/userController");
 const passport = require("passport");
 
+
+
+
 router.post("/register", createUser);
 router.post('/forgot-password-token', forgotPasswordToken );
 router.put('/reset-password/:token', resetPassword );
@@ -39,11 +42,13 @@ router.get(
   loginWithGoogle // Sau đó mới đến Controller của mình
 );
 
+router.post("/refresh", handleRefreshToken);
+
 router.put('/password',authMiddleware, updatePassword);
 router.post("/login", loginUser);
 router.post("/admin-login", loginAdmin);
 
-router.post("/refresh", handleRefreshToken);
+
 router.post("/logout", logout);
 router.get("/wishlist", authMiddleware, getWishList);
 

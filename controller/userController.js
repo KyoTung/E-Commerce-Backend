@@ -44,7 +44,8 @@ if (phone) {
 
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  //secure: process.env.NODE_ENV === "production", // Chỉ gửi qua HTTPS khi deploy, để dev có thể dùng HTTP
+  secure: false,
   sameSite: "lax",
   path: "/",
   maxAge: 30 * 24 * 60 * 60 * 1000,
@@ -119,6 +120,7 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
 //REFRESH TOKEN
 const handleRefreshToken = asyncHandler(async (req, res) => {
   const rt = req.cookies?.refreshToken;
+
 
   if (!rt)
     return res.status(401).json({ message: "Vui lòng đăng nhập" });
