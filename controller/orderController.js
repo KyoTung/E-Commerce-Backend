@@ -7,6 +7,9 @@ const asyncHandler = require("express-async-handler");
 const validateMongoDbId = require("../utils/validateMongoDB");
 var uniqid = require("uniqid");
 
+// =========================================================================
+// 1. TẠO ĐƠN HÀNG (Kiểm tra và Trừ kho theo Biến thể: Màu sắc + Bộ nhớ)
+// =========================================================================
 const createOrder = asyncHandler(async (req, res) => {
   const { paymentMethod, couponApplied, customerInfo } = req.body;
   const { _id } = req.user;
@@ -42,12 +45,27 @@ const createOrder = asyncHandler(async (req, res) => {
       return res.status(400).json({ error: "Cart is empty" });
     }
 
-    // Kiểm tra số lượng tồn kho
+    // --- KIỂM TRA TỒN KHO CHI TIẾT THEO BIẾN THỂ (MÀU SẮC + BỘ NHỚ) ---
     for (const item of findCart.products) {
       const product = await Product.findById(item.product._id);
-      if (product.quantity < item.count) {
+      if (!product) {
+        return res.status(404).json({ error: `Không tìm thấy sản phẩm ID: ${item.product._id}` });
+      }
+
+      // Tìm chính xác object biến thể đáp ứng cùng lúc cả màu sắc và bộ nhớ đã chọn
+      const selectedVariant = product.variants.find(
+        (v) => v.color === item.color && v.storage === item.storage
+      );
+
+      if (!selectedVariant) {
         return res.status(400).json({
-          error: `Insufficient stock for product: ${product.title}`,
+          error: `Không tồn tại phân loại Màu: ${item.color} - Bộ nhớ: ${item.storage} cho sản phẩm: ${product.title}`,
+        });
+      }
+
+      if (selectedVariant.quantity < item.count) {
+        return res.status(400).json({
+          error: `Sản phẩm ${product.title} (Màu: ${item.color} - ${item.storage}) không đủ số lượng trong kho. Còn lại: ${selectedVariant.quantity}`,
         });
       }
     }
@@ -59,9 +77,15 @@ const createOrder = asyncHandler(async (req, res) => {
       finalAmount = findCart.cartTotal;
     }
 
-    // Tạo đơn hàng mới
+    // Tạo đơn hàng mới (Đảm bảo Cart của bạn đã lưu trường storage)
     const newOrder = new Order({
-      products: findCart.products,
+      products: findCart.products.map(item => ({
+        product: item.product._id,
+        count: item.count,
+        color: item.color,
+        storage: item.storage, // Thêm trường lưu thông tin bộ nhớ vào đơn hàng
+        price: item.price
+      })),
       paymentIntent: {
         id: uniqid(),
         method: paymentMethod,
@@ -79,14 +103,19 @@ const createOrder = asyncHandler(async (req, res) => {
 
     await newOrder.save();
 
-    // Cập nhật số lượng sản phẩm đã bán
+    // --- CẬP NHẬT TRỪ KHO THEO BIẾN THỂ BẰNG BULKWRITE ---
     const updates = findCart.products.map((item) => ({
       updateOne: {
-        filter: { _id: item.product._id },
+        filter: {
+          _id: item.product._id,
+          variants: {
+            $elemMatch: { color: item.color, storage: item.storage } // Tìm trúng phần tử mảng thỏa mãn đồng thời
+          }
+        },
         update: {
           $inc: {
-            quantity: -item.count,
-            sold: +item.count,
+            "variants.$.quantity": -item.count, // Sử dụng toán tử vị trí đại diện $ để trừ kho biến thể
+            sold: +item.count,                  // Tăng số lượng đã bán tổng của sản phẩm
           },
         },
       },
@@ -94,7 +123,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
     await Product.bulkWrite(updates);
 
-    // Xóa giỏ hàng
+    // Xóa giỏ hàng sau khi đặt thành công
     await Cart.deleteOne({ orderby: findUser._id });
 
     res.json({
@@ -103,8 +132,6 @@ const createOrder = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Order creation error:", error);
-
-    // Phân loại lỗi để trả về thông báo phù hợp
     if (error.name === "ValidationError") {
       const errors = Object.values(error.errors).map((val) => val.message);
       return res.status(400).json({
@@ -112,7 +139,6 @@ const createOrder = asyncHandler(async (req, res) => {
         details: errors,
       });
     }
-
     res.status(500).json({
       error: "Failed to create order",
       details: error.message,
@@ -120,6 +146,210 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 });
 
+// =========================================================================
+// 2. CẬP NHẬT TRẠNG THÁI (Admin - Chống nhảy cấp + Hoàn kho khi Hủy/Trả hàng)
+// =========================================================================
+const updateStatus = asyncHandler(async (req, res) => {
+  const { status, paymentStatus, paymentIntentStatus } = req.body;
+  const { id } = req.params;
+  validateMongoDbId(id);
+
+  // Định nghĩa luồng chuyển đổi trạng thái hợp lệ
+  const statusTransitions = {
+    "Not Processed": ["Confirmed", "Cancelled"],
+    "Confirmed": ["Processing", "Cancelled"],
+    "Processing": ["Dispatched", "Cancelled"],
+    "Dispatched": ["Delivered", "Cancelled", "Returned"],
+    "Delivered": ["Returned"],
+    "Cancelled": [],
+    "Returned": [],
+  };
+
+  const allowedPaymentStatus = [
+    "not_paid", "paid", "failed", "refunded", "authorized",
+  ];
+
+  if (paymentStatus && !allowedPaymentStatus.includes(paymentStatus)) {
+    throw new Error("Invalid payment status");
+  }
+
+  try {
+    const existingOrder = await Order.findById(id);
+    if (!existingOrder) {
+      throw new Error("Order not found");
+    }
+
+    const currentStatus = existingOrder.orderStatus;
+
+    // Kiểm tra tính tuần tự logic trạng thái
+    if (status && status !== currentStatus) {
+      const allowedNextStatuses = statusTransitions[currentStatus] || [];
+      if (!allowedNextStatuses.includes(status)) {
+        throw new Error(`Invalid status update: Cannot change from '${currentStatus}' to '${status}'.`);
+      }
+    }
+
+    // --- XỬ LÝ HOÀN KHO KHI CHUYỂN TRẠNG THÁI SANG HỦY HOẶC TRẢ HÀNG ---
+    const isTransitioningToReturned = status === "Returned" && currentStatus !== "Returned";
+    const isTransitioningToCancelled = status === "Cancelled" && currentStatus !== "Cancelled";
+
+    if (isTransitioningToReturned || isTransitioningToCancelled) {
+      const bulkOps = existingOrder.products.map((item) => ({
+        updateOne: {
+          filter: {
+            _id: item.product, // item.product lúc này là ObjectId dạng thô từ db đơn hàng
+            variants: {
+              $elemMatch: { color: item.color, storage: item.storage }
+            }
+          },
+          update: {
+            $inc: {
+              "variants.$.quantity": +item.count, // Cộng hoàn trả lại kho biến thể
+              sold: -item.count,                  // Khấu trừ số lượng đã bán tổng
+            },
+          },
+        },
+      }));
+
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
+      }
+    }
+
+    // Tiến hành lưu dữ liệu cập nhật mới
+    const updateOrder = await Order.findByIdAndUpdate(
+      id,
+      {
+        orderStatus: status || currentStatus,
+        paymentStatus: paymentStatus || existingOrder.paymentStatus,
+        paymentIntent: {
+          status: paymentIntentStatus !== undefined ? paymentIntentStatus : existingOrder.paymentIntent?.status
+        },
+      },
+      { new: true }
+    );
+
+    res.json({
+      message: "Update status order successfully",
+      updateOrder,
+    });
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+});
+
+// =========================================================================
+// 3. HỦY ĐƠN HÀNG (Dành cho Client/User tự hủy đơn - Hoàn kho theo Biến thể)
+// =========================================================================
+const cancelOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user;
+
+  validateMongoDbId(id);
+
+  try {
+    const findOrder = await Order.findById(id);
+
+    if (!findOrder) {
+      throw new Error("Không tìm thấy đơn hàng");
+    }
+
+    if (findOrder.orderby.toString() !== _id.toString()) {
+      res.status(403);
+      throw new Error("Bạn không có quyền hủy đơn hàng của người khác");
+    }
+
+    const allowedStatusToCancel = ["Not Processed", "Confirmed"];
+    if (!allowedStatusToCancel.includes(findOrder.orderStatus)) {
+      res.status(400);
+      throw new Error(
+        `Không thể hủy đơn hàng đang ở trạng thái: ${findOrder.orderStatus}.`
+      );
+    }
+
+    // --- HOÀN TRẢ TỒN KHO CHI TIẾT THEO MÀU + BỘ NHỚ KHI USER HỦY ĐƠN ---
+    const bulkOps = findOrder.products.map((item) => ({
+      updateOne: {
+        filter: {
+          _id: item.product,
+          variants: {
+            $elemMatch: { color: item.color, storage: item.storage }
+          }
+        },
+        update: {
+          $inc: {
+            "variants.$.quantity": +item.count, // Cộng lại kho
+            sold: -item.count,                  // Trừ lượt bán tổng
+          },
+        },
+      },
+    }));
+
+    if (bulkOps.length > 0) {
+      await Product.bulkWrite(bulkOps);
+    }
+
+    const cancelledOrder = await Order.findByIdAndUpdate(
+      id,
+      { orderStatus: "Cancelled" },
+      { new: true }
+    );
+
+    res.json({
+      message: "Hủy đơn hàng thành công",
+      cancelledOrder,
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+// =========================================================================
+// 4. XÓA ĐƠN HÀNG (Admin xóa đơn cứng - Hoàn kho theo Biến thể)
+// =========================================================================
+const deleteOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user;
+
+  try {
+    const order = await Order.findOne({ _id: id, orderby: _id });
+    if (!order) {
+      return res.status(404).json({ error: "Order not found or unauthorized" });
+    }
+
+    // --- ĐỒNG BỘ HOÀN TRẢ TỒN KHO BIẾN THỂ KHI ADMIN XÓA ĐƠN ---
+    const bulkOps = order.products.map((item) => ({
+      updateOne: {
+        filter: {
+          _id: item.product,
+          variants: {
+            $elemMatch: { color: item.color, storage: item.storage }
+          }
+        },
+        update: {
+          $inc: {
+            "variants.$.quantity": +item.count, // Hoàn kho biến thể
+            sold: -item.count                   // Khấu trừ sold tổng
+          }
+        },
+      },
+    }));
+
+    if (bulkOps.length > 0) {
+      await Product.bulkWrite(bulkOps);
+    }
+
+    await Order.findByIdAndDelete(id);
+
+    res.json({ success: true, message: "Order deleted and stock restored" });
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+// =========================================================================
+// CÁC HÀM TRUY XUẤT DỮ LIỆU ĐƠN HÀNG (Giữ nguyên giao diện phản hồi hệ thống)
+// =========================================================================
 const getAllOrders = asyncHandler(async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
@@ -137,15 +367,12 @@ const getOrderUser = asyncHandler(async (req, res) => {
     const order = await Order.find({ orderby: findUser._id })
       .populate({
         path: "products.product",
-        select: "title images price color",
+        select: "title images price color variants",
       })
       .sort({ createdAt: -1 });
 
     if (order == null) {
-      res.json({
-        message: "No orders yet",
-        order,
-      });
+      res.json({ message: "No orders yet", order });
     } else {
       res.json(order);
     }
@@ -161,152 +388,15 @@ const getOrderDetail = asyncHandler(async (req, res) => {
     const order = await Order.findById(id)
       .populate({
         path: "products.product",
-        select: "name images price",
+        select: "name images price variants",
       })
       .exec();
 
     if (order == null) {
-      res.json({
-        message: "No orders yet",
-        order,
-      });
+      res.json({ message: "No orders yet", order });
     } else {
       res.json(order);
     }
-  } catch (error) {
-    throw new Error(error);
-  }
-});
-
-const updateStatus = asyncHandler(async (req, res) => {
-  const { status, paymentStatus, paymentIntentStatus } = req.body;
-  const { id } = req.params;
-  validateMongoDbId(id);
-  const allowedOrderStatus = [
-    "Not Processed",
-    "Confirmed",
-    "Processing",
-    "Dispatched",
-    "Cancelled",
-    "Delivered",
-    "Returned",
-  ];
-  const allowedPaymentStatus = [
-    "not_paid",
-    "paid",
-    "failed",
-    "refunded",
-    "authorized",
-  ];
-
-  if (!allowedOrderStatus.includes(status)) {
-    throw new Error("Invalid order status");
-  }
-  if (!allowedPaymentStatus.includes(paymentStatus)) {
-    throw new Error("Invalid payment status");
-  }
-  try {
-    const updateOrder = await Order.findByIdAndUpdate(
-      id,
-      {
-        orderStatus: status,
-        paymentStatus: paymentStatus,
-        paymentIntent: { status: paymentIntentStatus },
-      },
-      { new: true }
-    );
-    console.log(req.body);
-    res.json({
-      message: "Update status order successfully",
-      updateOrder,
-    });
-  } catch (error) {
-    throw new Error(error);
-  }
-});
-const cancelOrder = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { _id } = req.user; // Lấy ID user đang đăng nhập từ middleware
-
-  validateMongoDbId(id);
-
-  try {
-    const findOrder = await Order.findById(id);
-
-    if (!findOrder) {
-      throw new Error("Không tìm thấy đơn hàng");
-    }
-
-    // --- 1. BẢO MẬT: Kiểm tra xem đơn hàng này có phải của User đang login không ---
-    // So sánh ID người đặt (orderby) với ID người đang login (_id)
-    if (findOrder.orderby.toString() !== _id.toString()) {
-      res.status(403);
-      throw new Error("Bạn không có quyền hủy đơn hàng của người khác");
-    }
-
-    // --- 2. LOGIC: Chỉ cho phép hủy khi trạng thái hợp lệ (Allow List) ---
-    // Yêu cầu: Chỉ "Not Processed" và "Confirmed" mới được hủy
-    const allowedStatusToCancel = ["Not Processed", "Confirmed"];
-    
-    if (!allowedStatusToCancel.includes(findOrder.orderStatus)) {
-      res.status(400);
-      throw new Error(
-        `Không thể hủy đơn hàng đang ở trạng thái: ${findOrder.orderStatus}. Chỉ có thể hủy khi đơn hàng chưa được xử lý hoặc mới xác nhận.`
-      );
-    }
-
-    // Cập nhật trạng thái
-    const cancelledOrder = await Order.findByIdAndUpdate(
-      id,
-      {
-        orderStatus: "Cancelled",
-      },
-      { new: true }
-    );
-
-    res.json({
-      message: "Hủy đơn hàng thành công",
-      cancelledOrder,
-    });
-  } catch (error) {
-    throw new Error(error);
-  }
-});
-
-const deleteOrder = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { _id } = req.user; // Lấy ID user từ token để bảo mật
-
-  try {
-    // 1. Tìm đơn hàng
-    const order = await Order.findOne({ _id: id, orderby: _id });
-    if (!order) {
-      return res.status(404).json({ error: "Order not found or unauthorized" });
-    }
-
-    // 2. HOÀN TRẢ TỒN KHO (QUAN TRỌNG)
-    // Duyệt qua từng sản phẩm trong đơn hàng để cộng lại vào kho
-    const bulkOps = order.products.map((item) => ({
-      updateOne: {
-        filter: { _id: item.product }, // Tìm sản phẩm theo ID
-        update: { 
-            $inc: { 
-                quantity: +item.count, // Cộng lại số lượng đã trừ
-                sold: -item.count      // Trừ đi số lượng đã bán
-            } 
-        },
-      },
-    }));
-
-    if (bulkOps.length > 0) {
-      await Product.bulkWrite(bulkOps);
-    }
-
-    // 3. Xóa đơn hàng
-    await Order.findByIdAndDelete(id);
-
-    res.json({ success: true, message: "Order deleted and stock restored" });
-    
   } catch (error) {
     throw new Error(error);
   }
