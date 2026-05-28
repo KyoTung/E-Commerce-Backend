@@ -10,6 +10,7 @@ var orderSchema = new mongoose.Schema(
         },
         count: Number,
         color: String,
+        storage: String,
         price: Number,
       },
     ],
