@@ -156,34 +156,100 @@ const deleteCart = asyncHandler(async (req, res) => {
   }
 });
 
+// const applyCoupon = asyncHandler(async (req, res) => {
+//   const { _id } = req.user;
+//   validateMongoDbId(_id);
+//   const { coupon } = req.body;
+//   const validateCoupon = await Coupon.findOne({ name: coupon });
+//   if (!validateCoupon) {
+//     throw new Error("Invalid coupon");
+//   }
+//   const findUser = await User.findOne({ _id });
+//   const cart = await Cart.findOne({ orderby: findUser._id }).populate(
+//     "products.product"
+//   );
+//   if (!cart) throw new Error("Cart not found");
+
+//   let { cartTotal } = cart;
+//   let totalAfterDiscount = (
+//     cartTotal -
+//     (cartTotal * validateCoupon.discount) / 100
+//   ).toFixed(2);
+
+//   // Cập nhật lại cart
+//   const updatedCart = await Cart.findOneAndUpdate(
+//     { orderby: findUser._id },
+//     { $set: { totalAfterDiscount: totalAfterDiscount } },
+//     { new: true }
+//   );
+
+//   res.json({ totalAfterDiscount: updatedCart.totalAfterDiscount });
+// });
+
 const applyCoupon = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   validateMongoDbId(_id);
-  const { coupon } = req.body;
+  
+  // Nhận thêm mảng selectedItems từ frontend
+  const { coupon, selectedItems } = req.body; 
+  
   const validateCoupon = await Coupon.findOne({ name: coupon });
   if (!validateCoupon) {
-    throw new Error("Invalid coupon");
+    throw new Error("Mã giảm giá không hợp lệ hoặc đã hết hạn");
   }
+  
   const findUser = await User.findOne({ _id });
   const cart = await Cart.findOne({ orderby: findUser._id }).populate(
     "products.product"
   );
-  if (!cart) throw new Error("Cart not found");
+  if (!cart) throw new Error("Không tìm thấy giỏ hàng");
 
-  let { cartTotal } = cart;
+  let calculateTotal = 0;
+
+  // TÍNH TOÁN LẠI TỔNG TIỀN DỰA TRÊN SẢN PHẨM ĐƯỢC CHỌN (Bảo mật: Lấy giá từ DB)
+  if (selectedItems && selectedItems.length > 0) {
+    selectedItems.forEach((selectedItem) => {
+      const cartItem = cart.products.find(
+        (item) => 
+          item.product._id.toString() === selectedItem.productId &&
+          item.color === selectedItem.color &&
+          item.storage === selectedItem.storage
+      );
+
+      if (cartItem) {
+        // Lấy giá và số lượng từ Database, bỏ qua dữ liệu giá từ Frontend
+        calculateTotal += cartItem.price * cartItem.count;
+      }
+    });
+  } else {
+    // Fallback: Nếu không truyền gì, mặc định tính cho toàn bộ giỏ hàng
+    calculateTotal = cart.cartTotal;
+  }
+
+  if (calculateTotal === 0) {
+      throw new Error("Vui lòng chọn ít nhất một sản phẩm để áp dụng mã giảm giá");
+  }
+
+  // Tính toán số tiền sau khi giảm
   let totalAfterDiscount = (
-    cartTotal -
-    (cartTotal * validateCoupon.discount) / 100
+    calculateTotal -
+    (calculateTotal * validateCoupon.discount) / 100
   ).toFixed(2);
 
   // Cập nhật lại cart
+  // Lưu ý: Việc lưu totalAfterDiscount vào DB lúc này mang tính chất tạm thời cho phiên thanh toán hiện tại.
   const updatedCart = await Cart.findOneAndUpdate(
     { orderby: findUser._id },
     { $set: { totalAfterDiscount: totalAfterDiscount } },
     { new: true }
   );
 
-  res.json({ totalAfterDiscount: updatedCart.totalAfterDiscount });
+  // Trả về chi tiết để Frontend dễ hiển thị
+  res.json({ 
+      totalBeforeDiscount: calculateTotal,
+      totalAfterDiscount: updatedCart.totalAfterDiscount,
+      discountAmount: (calculateTotal - updatedCart.totalAfterDiscount).toFixed(2)
+  });
 });
 
 const updateCartItem = asyncHandler(async (req, res) => {
@@ -253,7 +319,7 @@ const removeCartItem = asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ orderby: _id });
   if (!cart) throw new Error("Cart not found");
 
-  // Remove product with matching productId AND color
+  // Remove product with matching productId AND color AND storage
   const initialLength = cart.products.length;
   cart.products = cart.products.filter(
     (item) =>
@@ -262,7 +328,7 @@ const removeCartItem = asyncHandler(async (req, res) => {
           item.product.toString() === productId &&
           item.color === color &&
           item.storage === storage
-        ) // <--- Quan trọng
+        ) 
       )
   );
   if (initialLength === cart.products.length) {
@@ -271,8 +337,8 @@ const removeCartItem = asyncHandler(async (req, res) => {
 
   // Check if cart is empty after removal
   if (cart.products.length === 0) {
-    // Delete the entire cart document
-    await Cart.findByIdAndDelete(cart.productId);
+    // SỬA Ở ĐÂY: Dùng cart._id thay vì cart.productId
+    await Cart.findByIdAndDelete(cart._id);
     return res.json({
       message: "Product removed - cart is now empty and was deleted",
       cart: null,
