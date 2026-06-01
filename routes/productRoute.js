@@ -9,7 +9,8 @@ const {
   addToWishList,
   rating,
   uploadImagesProduct,
-  deleteImagesProduct
+  deleteImagesProduct,
+  getAllProductsAdmin
 } = require("../controller/productController");
 
 const {
@@ -29,8 +30,10 @@ router.put(
   uploadImagesProduct
 );
 router.post("/", authMiddleware, isAdmin, createProduct);
+router.get("/admin", authMiddleware, isAdmin, getAllProductsAdmin);
 router.get("/:id", getAProduct);
 router.get("/", getAllProduct);
+
 router.put("/wishlist", authMiddleware, addToWishList);
 router.put("/rating", authMiddleware, rating);
 

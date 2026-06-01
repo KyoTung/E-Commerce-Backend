@@ -3,7 +3,10 @@ const User = require("../models/UserModel");
 const asyncHandler = require("express-async-handler");
 const slugify = require("slugify");
 const validateMongoDbId = require("../utils/validateMongoDB");
-const {cloudinaryUploadImage,cloudinaryDeleteImage} = require("../utils/cloudinary");
+const {
+  cloudinaryUploadImage,
+  cloudinaryDeleteImage,
+} = require("../utils/cloudinary");
 const path = require("path");
 const fs = require("fs");
 
@@ -12,13 +15,13 @@ const createProduct = asyncHandler(async (req, res) => {
     if (req.body.title) {
       req.body.slug = slugify(req.body.title);
     }
-     if (req.body.category) {
+    if (req.body.category) {
       req.body.slugCategory = slugify(req.body.category);
     }
     if (req.body.brand) {
       req.body.slugBrand = slugify(req.body.brand);
     }
-    
+
     const newProduct = await Product.create(req.body);
     res.json({
       message: "Product added successfully",
@@ -54,42 +57,46 @@ const getAllProduct = asyncHandler(async (req, res) => {
     queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, (match) => `$${match}`);
     const parsedQueryObj = JSON.parse(queryStr);
 
-    if (parsedQueryObj['basePrice[$gte]']) {
-        parsedQueryObj.basePrice = { 
-            ...parsedQueryObj.basePrice, 
-            $gte: Number(parsedQueryObj['basePrice[$gte]']) // Ép kiểu về số
-        };
-        delete parsedQueryObj['basePrice[$gte]']; // Xóa key sai
+    if (parsedQueryObj["basePrice[$gte]"]) {
+      parsedQueryObj.basePrice = {
+        ...parsedQueryObj.basePrice,
+        $gte: Number(parsedQueryObj["basePrice[$gte]"]), // Ép kiểu về số
+      };
+      delete parsedQueryObj["basePrice[$gte]"]; // Xóa key sai
     }
-    
-    if (parsedQueryObj['basePrice[$lte]']) {
-        parsedQueryObj.basePrice = { 
-            ...parsedQueryObj.basePrice, 
-            $lte: Number(parsedQueryObj['basePrice[$lte]']) // Ép kiểu về số
-        };
-        delete parsedQueryObj['basePrice[$lte]']; // Xóa key sai
+
+    if (parsedQueryObj["basePrice[$lte]"]) {
+      parsedQueryObj.basePrice = {
+        ...parsedQueryObj.basePrice,
+        $lte: Number(parsedQueryObj["basePrice[$lte]"]), // Ép kiểu về số
+      };
+      delete parsedQueryObj["basePrice[$lte]"]; // Xóa key sai
     }
 
     if (req.query.title) {
-        parsedQueryObj.title = { 
-            $regex: req.query.title, 
-            $options: "i" // "i" = case-insensitive (không phân biệt hoa thường)
-        };
+      parsedQueryObj.title = {
+        $regex: req.query.title,
+        $options: "i", // "i" = case-insensitive (không phân biệt hoa thường)
+      };
     }
 
-
     console.log("Final Query:", JSON.stringify(parsedQueryObj, null, 2));
-
 
     // Tạo truy vấn
     let query = Product.find(parsedQueryObj);
 
     // Sắp xếp
     if (req.query.sort) {
-      const sortBy = req.query.sort.split(",").join(" ");
+      // Thêm "_id" vào cuối chuỗi sort để đảm bảo thứ tự duy nhất
+      let sortBy = req.query.sort;
+      if (!sortBy.includes("_id")) {
+        sortBy = sortBy.split(",").concat("_id").join(" ");
+      } else {
+        sortBy = sortBy.split(",").join(" ");
+      }
       query = query.sort(sortBy);
     } else {
-      query = query.sort("-createdAt");
+      query = query.sort("-createdAt _id");
     }
 
     // Chọn trường hiển thị
@@ -123,6 +130,61 @@ const getAllProduct = asyncHandler(async (req, res) => {
   }
 });
 
+const getAllProductsAdmin = asyncHandler(async (req, res) => {
+  try {
+    // 1. Lấy tham số từ query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+
+    // 2. Xây dựng filter tìm kiếm (theo tên sản phẩm)
+    let filter = {};
+    if (search) {
+      filter.title = { $regex: search, $options: "i" };
+    }
+
+    // 3. Xử lý các filter khác (nếu có)
+    //    Ví dụ: lọc theo brand, category, giá...
+    if (req.query.brand) filter.brand = req.query.brand;
+    if (req.query.slugCategory) filter.slugCategory = req.query.slugCategory;
+    if (req.query.tags) filter.tags = req.query.tags;
+    if (req.query["basePrice[gte]"]) {
+      filter.basePrice = {
+        ...filter.basePrice,
+        $gte: Number(req.query["basePrice[gte]"]),
+      };
+    }
+    if (req.query["basePrice[lte]"]) {
+      filter.basePrice = {
+        ...filter.basePrice,
+        $lte: Number(req.query["basePrice[lte]"]),
+      };
+    }
+
+    // 4. Đếm tổng số sản phẩm thỏa filter
+    const total = await Product.countDocuments(filter);
+    const totalPages = Math.ceil(total / limit);
+    const skip = (page - 1) * limit;
+
+    // 5. Lấy danh sách sản phẩm có phân trang
+    const products = await Product.find(filter)
+      .sort("-createdAt")
+      .skip(skip)
+      .limit(limit)
+      .select("-__v");
+
+    // 6. Trả về metadata + dữ liệu
+    res.json({
+      products,
+      total,
+      totalPages,
+      currentPage: page,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 const updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
@@ -135,7 +197,7 @@ const updateProduct = asyncHandler(async (req, res) => {
       req.body,
       {
         new: true,
-      }
+      },
     );
 
     res.json({
@@ -168,11 +230,11 @@ const addToWishList = asyncHandler(async (req, res) => {
   const { _id } = req.user;
   const { prdId } = req.body;
   validateMongoDbId(_id);
-  
+
   try {
     const user = await User.findById(_id);
     const alreadyadded = user.wishlist.find((id) => id.toString() === prdId);
-    
+
     if (alreadyadded) {
       let updatedUser = await User.findByIdAndUpdate(
         _id,
@@ -181,7 +243,7 @@ const addToWishList = asyncHandler(async (req, res) => {
         },
         {
           new: true,
-        }
+        },
       );
       res.json(updatedUser);
     } else {
@@ -192,7 +254,7 @@ const addToWishList = asyncHandler(async (req, res) => {
         },
         {
           new: true,
-        }
+        },
       );
       res.json(updatedUser);
     }
@@ -211,12 +273,12 @@ const rating = asyncHandler(async (req, res) => {
     }
 
     const alreadyRatedIndex = product.rating.findIndex(
-      (r) => r.posteby.toString() === _id.toString()
+      (r) => r.posteby.toString() === _id.toString(),
     );
 
     if (alreadyRatedIndex !== -1) {
-      (product.rating[alreadyRatedIndex].star = star),
-        (product.rating[alreadyRatedIndex].comment = comment);
+      ((product.rating[alreadyRatedIndex].star = star),
+        (product.rating[alreadyRatedIndex].comment = comment));
     } else {
       product.rating.push({ star, posteby: _id, comment });
     }
@@ -228,7 +290,7 @@ const rating = asyncHandler(async (req, res) => {
     const totalRatingCount = updatedProduct.rating.length;
     const ratingSum = updatedProduct.rating.reduce(
       (sum, item) => sum + item.star,
-      0
+      0,
     );
     const averageRating = Math.round(ratingSum / totalRatingCount);
 
@@ -254,7 +316,7 @@ const uploadImagesProduct = asyncHandler(async (req, res) => {
           return newPath;
         } catch (error) {
           console.error("Lỗi upload ảnh:", error);
-          throw error; 
+          throw error;
         } finally {
           try {
             if (fs.existsSync(path)) fs.unlinkSync(path);
@@ -262,7 +324,7 @@ const uploadImagesProduct = asyncHandler(async (req, res) => {
             console.log("Lỗi xóa file tạm:", e);
           }
         }
-      })
+      }),
     );
 
     res.json(images);
@@ -272,31 +334,31 @@ const uploadImagesProduct = asyncHandler(async (req, res) => {
 });
 
 const deleteImagesProduct = asyncHandler(async (req, res) => {
-  const {id, publicIdToDelete} = req.params;
+  const { id, publicIdToDelete } = req.params;
   try {
-     cloudinaryDeleteImage(publicIdToDelete, "images");
-   const deleteImage = await Product.updateOne(
-  { _id: id },
-  { $pull: { images: { public_id: publicIdToDelete } } }
-);
-   res.json({
-    message:"Images deleted",
-    deleteImage
-   })
+    cloudinaryDeleteImage(publicIdToDelete, "images");
+    const deleteImage = await Product.updateOne(
+      { _id: id },
+      { $pull: { images: { public_id: publicIdToDelete } } },
+    );
+    res.json({
+      message: "Images deleted",
+      deleteImage,
+    });
   } catch (error) {
     throw new Error(error);
   }
 });
 
-
 module.exports = {
   createProduct,
   getAProduct,
   getAllProduct,
+  getAllProductsAdmin,
   updateProduct,
   deleteProduct,
   addToWishList,
   rating,
   uploadImagesProduct,
-  deleteImagesProduct
+  deleteImagesProduct,
 };
