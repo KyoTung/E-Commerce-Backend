@@ -1,4 +1,3 @@
-// controller/inventoryController.js
 const InventoryTransaction = require('../models/InventoryTransactionModel');
 const Product = require('../models/ProductModel');
 const mongoose = require('mongoose');
@@ -238,7 +237,7 @@ const getCurrentStock = asyncHandler(async (req, res) => {
       stockData.push({
         productId: prod._id,
         productTitle: prod.title,
-        image: prod.images?.[0]?.url || '',
+        image: variant.images?.[0]?.url || '',
         color: variant.color,
         storage: variant.storage,
         quantity: variant.quantity,
