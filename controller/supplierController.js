@@ -1,5 +1,5 @@
 
-const Supplier = require('../models/Supplier');
+const Supplier = require('../models/SupplierModel');
 const asyncHandler = require('express-async-handler');
 const validateMongoDbId = require('../utils/validateMongoDB');
 

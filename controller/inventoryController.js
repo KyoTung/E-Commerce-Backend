@@ -1,6 +1,6 @@
 // controller/inventoryController.js
-const InventoryTransaction = require('../models/InventoryTransaction');
-const Product = require('../models/Product');
+const InventoryTransaction = require('../models/InventoryTransactionModel');
+const Product = require('../models/ProductModel');
 const mongoose = require('mongoose');
 const asyncHandler = require('express-async-handler');
 const validateMongoDbId = require('../utils/validateMongoDB');
