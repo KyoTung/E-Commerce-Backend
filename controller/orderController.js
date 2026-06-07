@@ -6,163 +6,16 @@ const Cart = require("../models/CartModel");
 const asyncHandler = require("express-async-handler");
 const validateMongoDbId = require("../utils/validateMongoDB");
 var uniqid = require("uniqid");
+const mongoose = require("mongoose");  
 
 // =========================================================================
-// 1. TẠO ĐƠN HÀNG (Kiểm tra và Trừ kho theo Biến thể: Màu sắc + Bộ nhớ)
+// 1. TẠO ĐƠN HÀNG - Khách hàng tạo đơn luồng đặt hàng (Kiểm tra và Trừ kho theo Biến thể: Màu sắc + Bộ nhớ)
 // =========================================================================
-// const createOrder = asyncHandler(async (req, res) => {
-//   const { 
-//     paymentMethod, 
-//     couponApplied, 
-//     discountAmount, 
-//     shippingFee, 
-//     customerInfo,
-//     totalPrice,
-//     selectedItems // <--- Nhận mảng sản phẩm được chọn từ Frontend
-//   } = req.body;
-  
-//   const { _id } = req.user;
-//   validateMongoDbId(_id);
 
-//   try {
-//     // 1. Validate cơ bản (giữ nguyên code cũ của bạn)
-//     const allowedMethods = ["cod", "bank_transfer", "momo", "vnpay", "paypal", "ZaloPay"];
-//     if (!paymentMethod || !allowedMethods.includes(paymentMethod)) {
-//       return res.status(400).json({ error: "Invalid payment method" });
-//     }
-//     if (!customerInfo || !customerInfo.name || !customerInfo.address || !customerInfo.phone) {
-//       return res.status(400).json({ error: "Missing customer information" });
-//     }
-
-//     const findUser = await User.findById(_id);
-//     const findCart = await Cart.findOne({ orderby: findUser._id }).populate("products.product");
-
-//     if (!findCart || findCart.products.length === 0) {
-//       return res.status(400).json({ error: "Cart is empty or not found" });
-//     }
-
-//     // 2. LỌC CÁC SẢN PHẨM ĐƯỢC THANH TOÁN
-//     const itemsToCheckout = selectedItems && selectedItems.length > 0 
-//       ? findCart.products.filter(cartItem =>
-//           selectedItems.some(selectedItem =>
-//             selectedItem.product._id === cartItem.product._id.toString() &&
-//             selectedItem.color === cartItem.color &&
-//             selectedItem.storage === cartItem.storage
-//           )
-//         )
-//       : findCart.products; // Fallback nếu không có selectedItems
-
-//     if (itemsToCheckout.length === 0) {
-//       return res.status(400).json({ error: "Không tìm thấy sản phẩm hợp lệ để thanh toán" });
-//     }
-
-//     // 3. KIỂM TRA TỒN KHO CHI TIẾT THEO BIẾN THỂ (Chỉ kiểm tra itemsToCheckout)
-//     for (const item of itemsToCheckout) {
-//       const product = await Product.findById(item.product._id);
-//       if (!product) return res.status(404).json({ error: `Không tìm thấy sản phẩm ID: ${item.product._id}` });
-
-//       const selectedVariant = product.variants.find(
-//         (v) => v.color === item.color && v.storage === item.storage
-//       );
-
-//       if (!selectedVariant) {
-//         return res.status(400).json({ error: `Không tồn tại phân loại Màu: ${item.color} - Bộ nhớ: ${item.storage} cho sản phẩm: ${product.title}` });
-//       }
-
-//       if (selectedVariant.quantity < item.count) {
-//         return res.status(400).json({ error: `Sản phẩm ${product.title} không đủ số lượng trong kho.` });
-//       }
-//     }
-
-//     // 4. TẠO ĐƠN HÀNG MỚI (Chỉ map mảng itemsToCheckout)
-//     const newOrder = new Order({
-//       products: itemsToCheckout.map(item => ({
-//         product: item.product._id,
-//         count: item.count,
-//         color: item.color,
-//         storage: item.storage,
-//         price: item.price
-//       })),
-//       paymentIntent: {
-//         id: uniqid(),
-//         method: paymentMethod,
-//         amount: totalPrice,
-//         currency: "VND",
-//         status: "pending",
-//       },
-//       orderby: findUser._id,
-//       paymentMethod,
-//       orderStatus: "Not Processed",
-//       paymentStatus: "not_paid",
-      
-//       total: totalPrice,
-//       couponApplied: couponApplied || false,
-//       discountAmount: discountAmount || 0,
-//       shippingFee: shippingFee || 0,
-//       customerInfo,
-//     });
-
-//     await newOrder.save();
-
-//     // 5. CẬP NHẬT TRỪ KHO (Chỉ trừ itemsToCheckout)
-//     const updates = itemsToCheckout.map((item) => ({
-//       updateOne: {
-//         filter: {
-//           _id: item.product._id,
-//           variants: { $elemMatch: { color: item.color, storage: item.storage } }
-//         },
-//         update: {
-//           $inc: {
-//             "variants.$.quantity": -item.count, 
-//             sold: +item.count,                  
-//           },
-//         },
-//       },
-//     }));
-
-//     await Product.bulkWrite(updates);
-
-//     // 6. XỬ LÝ GIỎ HÀNG THÔNG MINH (Không xóa sạch)
-//     const remainingItems = findCart.products.filter(cartItem =>
-//       !itemsToCheckout.some(purchasedItem =>
-//         purchasedItem.product._id.toString() === cartItem.product._id.toString() &&
-//         purchasedItem.color === cartItem.color &&
-//         purchasedItem.storage === cartItem.storage
-//       )
-//     );
-
-//     if (remainingItems.length === 0) {
-//       // Nếu mua hết thì xóa toàn bộ giỏ hàng
-//       await Cart.findByIdAndDelete(findCart._id);
-//     } else {
-//       // Nếu vẫn còn hàng, lưu lại danh sách sản phẩm còn dư và tính toán lại tổng tiền gốc
-//       findCart.products = remainingItems;
-//       findCart.cartTotal = remainingItems.reduce((total, item) => total + item.price * item.count, 0);
-//       findCart.totalAfterDiscount = undefined; // Hủy trạng thái giảm giá của giỏ
-//       await findCart.save();
-//     }
-
-//     res.json({
-//       message: "Thanh toán thành công",
-//       order: newOrder,
-//     });
-
-//   } catch (error) {
-//     console.error("Order creation error:", error);
-//     if (error.name === "ValidationError") {
-//       const errors = Object.values(error.errors).map((val) => val.message);
-//       return res.status(400).json({ error: "Validation Error", details: errors });
-//     }
-//     res.status(500).json({ error: "Thanh toán thất bại", details: error.message });
-//   }
-// });
-// =========================================================================
-// 1. TẠO ĐƠN HÀNG (Bảo mật: Tự tính toán lại toàn bộ tài chính)
-// =========================================================================
 const createOrder = asyncHandler(async (req, res) => {
   const { 
     paymentMethod, 
-    couponCode,     // Frontend chỉ cần gửi text mã giảm giá (VD: "TET2024")
+    couponCode,     // Frontend gửi text mã giảm giá (VD: "TET2024")
     shippingFee, 
     customerInfo,
     selectedItems
@@ -316,6 +169,131 @@ const createOrder = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error("Order creation error:", error);
     res.status(500).json({ error: "Thanh toán thất bại", details: error.message });
+  }
+});
+
+// =========================================================================
+// TẠO ĐƠN HÀNG THỦ CÔNG - ADMIN tạo đơn luồng quản trị (Kiểm tra và Trừ kho theo Biến thể: Màu sắc + Bộ nhớ)
+// =========================================================================
+const adminCreateOrder = asyncHandler(async (req, res) => {
+  const {
+    customerInfo,
+    orderItems,
+    shippingFee,
+    discountAmount,
+    paymentMethod,
+    paymentStatus,
+    orderStatus,
+  } = req.body;
+
+  const adminId = req.user._id; // ID của admin tạo đơn
+  validateMongoDbId(adminId);
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (!orderItems || orderItems.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ error: "Đơn hàng phải có ít nhất 1 sản phẩm" });
+    }
+
+    let calculateTotal = 0;
+    const orderProducts = [];
+
+    // 1. KIỂM TRA TỒN KHO & LẤY GIÁ TỪ DB (KHÔNG TIN CLIENT)
+    for (const item of orderItems) {
+      const product = await Product.findById(item.product).session(session);
+      if (!product) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ error: `Không tìm thấy sản phẩm ID: ${item.product}` });
+      }
+
+      const selectedVariant = product.variants.find(
+        (v) => v.color === item.color && v.storage === item.storage
+      );
+      if (!selectedVariant) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+          error: `Không tồn tại phân loại ${item.color} - ${item.storage} của sản phẩm ${product.title}`,
+        });
+      }
+
+      if (selectedVariant.quantity < item.count) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+          error: `Sản phẩm ${product.title} (${item.color}-${item.storage}) chỉ còn ${selectedVariant.quantity} trong kho.`,
+        });
+      }
+
+      // Lấy giá thật từ database
+      const realPrice = selectedVariant.price;
+      calculateTotal += realPrice * item.count;
+
+      orderProducts.push({
+        product: product._id,
+        count: item.count,
+        color: item.color,
+        storage: item.storage,
+        price: realPrice,
+      });
+    }
+
+    // 2. TÍNH TỔNG TIỀN
+    const finalAmount = calculateTotal + (shippingFee || 0) - (discountAmount || 0);
+
+    // 3. TẠO ĐƠN HÀNG TRONG TRANSACTION
+    const newOrder = new Order({
+      products: orderProducts,
+      orderby: adminId, // Lưu admin là người tạo (hoặc bạn có thể lưu null nếu muốn)
+      paymentMethod: paymentMethod || "cod",
+      orderStatus: orderStatus || "Confirmed",
+      paymentStatus: paymentStatus || "not_paid",
+      total: finalAmount,
+      discountAmount: discountAmount || 0,
+      shippingFee: shippingFee || 0,
+      customerInfo,
+      createdByAdmin: true,
+    });
+
+    await newOrder.save({ session });
+
+    // 4. CẬP NHẬT TỒN KHO (BULK WRITE)
+    const updates = orderItems.map((item) => ({
+      updateOne: {
+        filter: {
+          _id: item.product,
+          variants: { $elemMatch: { color: item.color, storage: item.storage } }
+        },
+        update: {
+          $inc: {
+            "variants.$.quantity": -item.count,
+            sold: +item.count,
+          },
+        },
+      },
+    }));
+
+    await Product.bulkWrite(updates, { session });
+
+    // Commit transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(201).json({
+      success: true,
+      message: "Tạo đơn hàng thành công",
+      order: newOrder,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Admin Create Order Error:", error);
+    res.status(500).json({ error: "Lỗi hệ thống khi tạo đơn hàng", details: error.message });
   }
 });
 
@@ -653,6 +631,7 @@ const checkCouponCheckout = asyncHandler(async (req, res) => {
 
 module.exports = {
   createOrder,
+  adminCreateOrder,
   getOrderUser,
   updateStatus,
   getAllOrders,
