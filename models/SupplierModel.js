@@ -1,7 +1,7 @@
 // models/Supplier.js
 const mongoose = require('mongoose');
 
-const supplierSchema = new mongoose.Schema({
+const SupplierModel = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Tên nhà cung cấp là bắt buộc'],
@@ -49,4 +49,4 @@ const supplierSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('Supplier', supplierSchema);
+module.exports = mongoose.model('Supplier', SupplierModel);

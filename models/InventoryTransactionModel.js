@@ -1,7 +1,7 @@
 // models/InventoryTransaction.js
 const mongoose = require('mongoose');
 
-const InventoryTransactionSchema = new mongoose.Schema({
+const InventoryTransactionModel = new mongoose.Schema({
   transactionType: {
     type: String,
     enum: ['IMPORT', 'EXPORT', 'RETURN', 'ADJUSTMENT'],
@@ -88,9 +88,9 @@ const InventoryTransactionSchema = new mongoose.Schema({
 });
 
 // Tạo chỉ mục để tìm kiếm nhanh
-InventoryTransactionSchema.index({ receiptCode: 1 });
-InventoryTransactionSchema.index({ supplier: 1 });
-InventoryTransactionSchema.index({ createdAt: -1 });
-InventoryTransactionSchema.index({ 'items.product': 1 });
+InventoryTransactionModel.index({ receiptCode: 1 });
+InventoryTransactionModel.index({ supplier: 1 });
+InventoryTransactionModel.index({ createdAt: -1 });
+InventoryTransactionModel.index({ 'items.product': 1 });
 
-module.exports = mongoose.model('InventoryTransaction', InventoryTransactionSchema);
+module.exports = mongoose.model('InventoryTransaction', InventoryTransactionModel);
