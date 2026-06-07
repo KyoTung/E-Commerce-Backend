@@ -134,7 +134,7 @@ const createOrder = asyncHandler(async (req, res) => {
     }));
     await Product.bulkWrite(stockUpdates, { session });
 
-    // Ghi nhận giao dịch bán hàng (sale) vào InventoryTransaction
+    // Ghi nhận giao dịch bán hàng (SALE) vào InventoryTransaction
     const transactionItems = itemsToCheckout.map(item => ({
       product: item.product._id,
       color: item.color,
@@ -145,7 +145,7 @@ const createOrder = asyncHandler(async (req, res) => {
     }));
     const totalSaleValue = itemsToCheckout.reduce((sum, i) => sum + i.price * i.count, 0);
     await InventoryTransaction.create([{
-      transactionType: "sale",
+      transactionType: "SALE",
       referenceId: newOrder._id,
       items: transactionItems,
       totalValue: totalSaleValue,
@@ -183,7 +183,7 @@ const createOrder = asyncHandler(async (req, res) => {
 });
 
 // =========================================================================
-// TẠO ĐƠN HÀNG THỦ CÔNG - ADMIN (Có transaction + ghi sale transaction)
+// TẠO ĐƠN HÀNG THỦ CÔNG - ADMIN (Có transaction + ghi SALE transaction)
 // =========================================================================
 const adminCreateOrder = asyncHandler(async (req, res) => {
   const { customerInfo, orderItems, shippingFee, discountAmount, paymentMethod, paymentStatus, orderStatus } = req.body;
@@ -258,7 +258,7 @@ const adminCreateOrder = asyncHandler(async (req, res) => {
     }));
     await Product.bulkWrite(stockUpdates, { session });
 
-    // Ghi transaction sale cho đơn hàng admin tạo
+    // Ghi transaction SALE cho đơn hàng admin tạo
     const transactionItems = orderItems.map(item => ({
       product: item.product,
       color: item.color,
@@ -268,7 +268,7 @@ const adminCreateOrder = asyncHandler(async (req, res) => {
       importPrice: 0,
     }));
     await InventoryTransaction.create([{
-      transactionType: "sale",
+      transactionType: "SALE",
       referenceId: newOrder._id,
       items: transactionItems,
       totalValue: 0,

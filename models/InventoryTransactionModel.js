@@ -4,16 +4,16 @@ const mongoose = require('mongoose');
 const InventoryTransactionModel = new mongoose.Schema({
   transactionType: {
     type: String,
-    enum: ['IMPORT', 'EXPORT', 'RETURN', 'ADJUSTMENT'],
+    enum: ['IMPORT', 'EXPORT', 'RETURN', 'ADJUSTMENT', 'SALE'],
     required: true,
-    comment: 'IMPORT: Nhập từ nhà cung cấp; EXPORT: Xuất trả NCC, hủy hàng; RETURN: Khách trả hàng (từ đơn bán); ADJUSTMENT: Kiểm kho điều chỉnh'
+    comment: 'IMPORT: Nhập từ nhà cung cấp; EXPORT: Xuất trả NCC, hủy hàng; RETURN: Khách trả hàng (từ đơn bán); ADJUSTMENT: Kiểm kho điều chỉnh; SALE: Bán hàng'
   },
   receiptCode: {
     type: String,
     unique: true,
     required: true,
     default: function() {
-      const prefix = this.transactionType === 'IMPORT' ? 'NK' : (this.transactionType === 'EXPORT' ? 'XK' : (this.transactionType === 'RETURN' ? 'TH' : 'DK'));
+      const prefix = this.transactionType === 'IMPORT' ? 'NK' : (this.transactionType === 'EXPORT' ? 'XK' : (this.transactionType === 'RETURN' ? 'TH' : (this.transactionType === 'SALE' ? 'BH' : 'DK')));
       const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
       return `${prefix}${Date.now().toString().slice(-6)}${random}`;
     }
@@ -55,12 +55,12 @@ const InventoryTransactionModel = new mongoose.Schema({
     },
     oldQuantity: {
       type: Number,
-      required: true,
+      default: null,
       comment: 'Số lượng tồn kho của biến thể trước khi giao dịch'
     },
     newQuantity: {
       type: Number,
-      required: true,
+      default: null,
       comment: 'Số lượng tồn kho sau khi giao dịch'
     }
   }],
