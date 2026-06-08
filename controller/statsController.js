@@ -3,12 +3,12 @@ const Product = require('../models/ProductModel');
 const User = require('../models/UserModel');
 const asyncHandler = require('express-async-handler');
 
-// Helper: lấy khoảng thời gian (ngày bắt đầu, kết thúc)
+// Helper: Lấy khoảng thời gian (chống undefined, 'undefined')
 const getDateRange = (period, customStart, customEnd) => {
   let startDate, endDate = new Date();
   endDate.setHours(23, 59, 59, 999);
 
-  if (customStart && customEnd) {
+  if (customStart && customStart !== 'undefined' && customEnd && customEnd !== 'undefined') {
     startDate = new Date(customStart);
     startDate.setHours(0, 0, 0, 0);
     endDate = new Date(customEnd);
@@ -36,78 +36,78 @@ const getDateRange = (period, customStart, customEnd) => {
       startDate.setFullYear(startDate.getFullYear() - 1);
       startDate.setHours(0, 0, 0, 0);
       break;
-    default: // 'all' hoặc không có
+    default:
       startDate = new Date(0);
       break;
   }
   return { startDate, endDate };
 };
 
-// @desc    Lấy tổng quan dashboard
-// @route   GET /api/stats/overview
-// @access  Private (Admin/Staff)
+// Helper: Điều kiện lọc đơn có doanh thu (paid hoặc COD)
+const revenueMatchStage = (startDate, endDate) => ({
+  $or: [
+    { paymentStatus: 'paid' },
+    { paymentMethod: 'cod' }   // viết thường theo đúng enum trong OrderModel
+  ],
+  createdAt: { $gte: startDate, $lte: endDate }
+});
+
+// ====================== 1. Tổng quan ======================
 const getOverview = asyncHandler(async (req, res) => {
   const { period = 'week', startDate: customStart, endDate: customEnd } = req.query;
   const { startDate, endDate } = getDateRange(period, customStart, customEnd);
+  const match = revenueMatchStage(startDate, endDate);
 
-  // Điều kiện lọc đơn hàng đã hoàn thành (Delivered và paid)
-  const orderFilter = {
-    orderStatus: 'Delivered',
-    paymentStatus: 'paid',
-    createdAt: { $gte: startDate, $lte: endDate }
-  };
-
-  // Tổng doanh thu
   const revenueResult = await Order.aggregate([
-    { $match: orderFilter },
+    { $match: match },
     { $group: { _id: null, total: { $sum: '$total' } } }
   ]);
   const totalRevenue = revenueResult[0]?.total || 0;
+  const totalOrders = await Order.countDocuments(match);
+  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-  // Tổng số đơn hàng
-  const totalOrders = await Order.countDocuments(orderFilter);
-
-  // Giá trị đơn hàng trung bình (AOV)
-  const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-  // Số lượng khách hàng mới
   const newCustomers = await User.countDocuments({
     createdAt: { $gte: startDate, $lte: endDate },
-    role: 'customer'
+    role: 'user'
   });
 
-  // Số lượng sản phẩm tồn kho dưới ngưỡng (cảnh báo)
   const lowStockThreshold = parseInt(req.query.threshold) || 5;
-  const lowStockProducts = await Product.aggregate([
+  const lowStockResult = await Product.aggregate([
     { $unwind: '$variants' },
-    { $match: { 'variants.quantity': { $lt: lowStockThreshold, $gt: 0 } } },
+    { $match: { 'variants.quantity': { $lt: lowStockThreshold, $gte: 0 } } },
     { $group: { _id: null, count: { $sum: 1 } } }
   ]);
-  const lowStockCount = lowStockProducts[0]?.count || 0;
+  const lowStockCount = lowStockResult[0]?.count || 0;
 
   res.json({
     totalRevenue,
     totalOrders,
-    averageOrderValue: aov,
+    averageOrderValue,
     newCustomers,
     lowStockCount,
     period: { startDate, endDate }
   });
 });
 
-// @desc    Lấy doanh thu theo ngày/tuần/tháng (dữ liệu biểu đồ)
-// @route   GET /api/stats/revenue
-// @access  Private
+// ====================== 2. Doanh thu theo biểu đồ ======================
 const getRevenueChart = asyncHandler(async (req, res) => {
   const { period = 'day', range = 7, startDate: customStart, endDate: customEnd } = req.query;
   let startDate, endDate = new Date();
   endDate.setHours(23, 59, 59, 999);
 
-  if (customStart && customEnd) {
+  if (customStart && customStart !== 'undefined' && customEnd && customEnd !== 'undefined') {
     startDate = new Date(customStart);
-    startDate.setHours(0, 0, 0, 0);
     endDate = new Date(customEnd);
-    endDate.setHours(23, 59, 59, 999);
+    if (isNaN(startDate) || isNaN(endDate)) {
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+    }
   } else {
     startDate = new Date();
     if (period === 'day') {
@@ -124,30 +124,39 @@ const getRevenueChart = asyncHandler(async (req, res) => {
     }
   }
 
-  const matchStage = {
-    orderStatus: 'Delivered',
-    paymentStatus: 'paid',
-    createdAt: { $gte: startDate, $lte: endDate }
-  };
-
-  let groupBy;
-  let dateFormat;
+  const match = revenueMatchStage(startDate, endDate);
+  let groupId;
   if (period === 'day') {
-    groupBy = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
-    dateFormat = 'YYYY-MM-DD';
+    groupId = {
+      $dateToString: {
+        format: '%Y-%m-%d',
+        date: '$createdAt',
+        timezone: "Asia/Ho_Chi_Minh"
+      }
+    };
   } else if (period === 'week') {
-    groupBy = { $dateToString: { format: '%Y-%U', date: '$createdAt' } };
-    dateFormat = 'YYYY-WW';
-  } else { // month
-    groupBy = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
-    dateFormat = 'YYYY-MM';
+    groupId = {
+      $dateToString: {
+        format: '%Y-%V',
+        date: '$createdAt',
+        timezone: "Asia/Ho_Chi_Minh"
+      }
+    };
+  } else {
+    groupId = {
+      $dateToString: {
+        format: '%Y-%m',
+        date: '$createdAt',
+        timezone: "Asia/Ho_Chi_Minh"
+      }
+    };
   }
 
   const revenueData = await Order.aggregate([
-    { $match: matchStage },
+    { $match: match },
     {
       $group: {
-        _id: groupBy,
+        _id: groupId,
         revenue: { $sum: '$total' },
         orders: { $sum: 1 }
       }
@@ -155,26 +164,17 @@ const getRevenueChart = asyncHandler(async (req, res) => {
     { $sort: { _id: 1 } }
   ]);
 
-  // Điền các khoảng trống (nếu cần, có thể xử lý thêm)
-  res.json({ data: revenueData, period, dateFormat, startDate, endDate });
+  res.json({ data: revenueData, period, startDate, endDate });
 });
 
-// @desc    Top sản phẩm bán chạy (theo số lượng hoặc doanh thu)
-// @route   GET /api/stats/top-products
-// @access  Private
+// ====================== 3. Top sản phẩm bán chạy ======================
 const getTopProducts = asyncHandler(async (req, res) => {
   const { limit = 5, by = 'quantity', period = 'month', startDate: customStart, endDate: customEnd } = req.query;
   const { startDate, endDate } = getDateRange(period, customStart, customEnd);
+  const match = revenueMatchStage(startDate, endDate);
 
-  const matchStage = {
-    orderStatus: 'Delivered',
-    paymentStatus: 'paid',
-    createdAt: { $gte: startDate, $lte: endDate }
-  };
-
-  // Unwind products array
   const pipeline = [
-    { $match: matchStage },
+    { $match: match },
     { $unwind: '$products' },
     {
       $lookup: {
@@ -184,7 +184,7 @@ const getTopProducts = asyncHandler(async (req, res) => {
         as: 'productInfo'
       }
     },
-    { $unwind: '$productInfo' },
+    { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: false } },
     {
       $group: {
         _id: {
@@ -206,24 +206,7 @@ const getTopProducts = asyncHandler(async (req, res) => {
   res.json(topProducts);
 });
 
-// @desc    Thống kê trạng thái đơn hàng (dùng cho pie chart)
-// @route   GET /api/stats/order-status
-// @access  Private
-const getOrderStatusStats = asyncHandler(async (req, res) => {
-  const { startDate: customStart, endDate: customEnd } = req.query;
-  const { startDate, endDate } = getDateRange('all', customStart, customEnd);
-
-  const matchStage = { createdAt: { $gte: startDate, $lte: endDate } };
-  const statusStats = await Order.aggregate([
-    { $match: matchStage },
-    { $group: { _id: '$orderStatus', count: { $sum: 1 } } }
-  ]);
-  res.json(statusStats);
-});
-
-// @desc    Cảnh báo tồn kho thấp (danh sách sản phẩm)
-// @route   GET /api/stats/low-stock
-// @access  Private
+// ====================== 4. Sản phẩm tồn kho thấp ======================
 const getLowStockList = asyncHandler(async (req, res) => {
   const threshold = parseInt(req.query.threshold) || 5;
   const lowStockVariants = await Product.aggregate([
@@ -244,9 +227,79 @@ const getLowStockList = asyncHandler(async (req, res) => {
   res.json(lowStockVariants);
 });
 
-// @desc    Thống kê khách hàng mới theo thời gian
-// @route   GET /api/stats/new-customers
-// @access  Private
+// ====================== 5. Doanh thu theo thương hiệu ======================
+const getRevenueByBrand = asyncHandler(async (req, res) => {
+  const { startDate: customStart, endDate: customEnd } = req.query;
+  const { startDate, endDate } = getDateRange('all', customStart, customEnd);
+  const match = revenueMatchStage(startDate, endDate);
+
+  const result = await Order.aggregate([
+    { $match: match },
+    { $unwind: '$products' },
+    {
+      $lookup: {
+        from: 'products',
+        localField: 'products.product',
+        foreignField: '_id',
+        as: 'productInfo'
+      }
+    },
+    { $unwind: '$productInfo' },
+    {
+      $group: {
+        _id: '$productInfo.brand',
+        revenue: { $sum: { $multiply: ['$products.price', '$products.count'] } },
+        quantity: { $sum: '$products.count' }
+      }
+    },
+    { $sort: { revenue: -1 } }
+  ]);
+  res.json(result);
+});
+
+// ====================== 6. Doanh thu theo danh mục ======================
+const getRevenueByCategory = asyncHandler(async (req, res) => {
+  const { startDate: customStart, endDate: customEnd } = req.query;
+  const { startDate, endDate } = getDateRange('all', customStart, customEnd);
+  const match = revenueMatchStage(startDate, endDate);
+
+  const result = await Order.aggregate([
+    { $match: match },
+    { $unwind: '$products' },
+    {
+      $lookup: {
+        from: 'products',
+        localField: 'products.product',
+        foreignField: '_id',
+        as: 'productInfo'
+      }
+    },
+    { $unwind: '$productInfo' },
+    {
+      $group: {
+        _id: '$productInfo.category',
+        revenue: { $sum: { $multiply: ['$products.price', '$products.count'] } },
+        quantity: { $sum: '$products.count' }
+      }
+    },
+    { $sort: { revenue: -1 } }
+  ]);
+  res.json(result);
+});
+
+// ====================== 7. Thống kê trạng thái đơn hàng ======================
+const getOrderStatusStats = asyncHandler(async (req, res) => {
+  const { startDate: customStart, endDate: customEnd } = req.query;
+  const { startDate, endDate } = getDateRange('all', customStart, customEnd);
+  const match = { createdAt: { $gte: startDate, $lte: endDate } };
+  const statusStats = await Order.aggregate([
+    { $match: match },
+    { $group: { _id: '$orderStatus', count: { $sum: 1 } } }
+  ]);
+  res.json(statusStats);
+});
+
+// ====================== 8. Thống kê khách hàng mới ======================
 const getNewCustomers = asyncHandler(async (req, res) => {
   const { period = 'week', range = 4 } = req.query;
   let startDate = new Date();
@@ -264,7 +317,7 @@ const getNewCustomers = asyncHandler(async (req, res) => {
   const newCustomers = await User.aggregate([
     {
       $match: {
-        role: 'customer',
+        role: 'user',
         createdAt: { $gte: startDate }
       }
     },
@@ -290,5 +343,7 @@ module.exports = {
   getTopProducts,
   getOrderStatusStats,
   getLowStockList,
-  getNewCustomers
+  getNewCustomers,
+  getRevenueByBrand,
+  getRevenueByCategory
 };

@@ -6,7 +6,9 @@ const {
   getTopProducts,
   getOrderStatusStats,
   getLowStockList,
-  getNewCustomers
+  getNewCustomers,
+  getRevenueByBrand,
+  getRevenueByCategory
 } = require('../controller/statsController');
 
 const router = express.Router();
@@ -20,5 +22,6 @@ router.get('/top-products', getTopProducts);
 router.get('/order-status', getOrderStatusStats);
 router.get('/low-stock', getLowStockList);
 router.get('/new-customers', getNewCustomers);
-
+router.get('/revenue-by-brand', getRevenueByBrand);
+router.get('/revenue-by-category', getRevenueByCategory);
 module.exports = router;
