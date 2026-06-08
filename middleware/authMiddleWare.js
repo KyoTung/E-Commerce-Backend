@@ -30,7 +30,7 @@ const isAdmin = asyncHandler(async (req, res, next) => {
 });
 
 const isStaff = asyncHandler(async (req, res, next) => {
-  if (req.user?.role !== 'admin' || req.user?.role !== 'staff' ) {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'staff' ) {
     return res.status(403).json({ message: 'Forbidden: staff only' });
   }
   next();

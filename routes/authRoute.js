@@ -39,7 +39,7 @@ router.get(
 router.get(
   "/auth/google/callback",
   passport.authenticate("google", { session: false }), // Middleware Passport chạy trước
-  loginWithGoogle // Sau đó mới đến Controller của mình
+  loginWithGoogle // Sau đó mới đến Controller
 );
 
 router.post("/refresh", handleRefreshToken);
@@ -53,15 +53,15 @@ router.post("/logout", logout);
 router.get("/wishlist", authMiddleware, getWishList);
 
 
-router.get("/all-users",authMiddleware, getAllUsers);
+router.get("/all-users",authMiddleware, isAdmin, getAllUsers);
 router.get("/:id",authMiddleware,getUser);
 
 router.delete("/:id", authMiddleware,isAdmin, deleteUser);
 router.put("/update-user/:id",authMiddleware,isAdmin, updateUser);
 router.put("/update-informaion/:id", authMiddleware, updateInfo)
 
-router.put("/block-user/:id", authMiddleware, blockUser);
-router.put("/unlock-user/:id", authMiddleware, unlockUser);
+router.put("/block-user/:id", authMiddleware,isAdmin, blockUser);
+router.put("/unlock-user/:id", authMiddleware, isAdmin, unlockUser);
 
 
 

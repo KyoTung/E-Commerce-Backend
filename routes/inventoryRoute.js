@@ -1,5 +1,5 @@
 const express = require('express');
-const { authMiddleware, isAdmin } = require('../middleware/authMiddleWare');
+const { authMiddleware, isAdmin, isStaff } = require('../middleware/authMiddleWare');
 const {
   createImportTransaction,
   createExportTransaction,
@@ -11,11 +11,11 @@ const {
 
 const router = express.Router();
 
-router.post('/import', authMiddleware, isAdmin, createImportTransaction);
-router.post('/export', authMiddleware, isAdmin, createExportTransaction);
-router.get('/transactions', authMiddleware, isAdmin, getTransactions);
-router.get('/transactions/:id', authMiddleware, isAdmin, getTransactionDetail);
-router.put('/transactions/:id/cancel', authMiddleware, isAdmin, cancelImportTransaction);
-router.get('/stock', authMiddleware, isAdmin, getCurrentStock);
+router.post('/import', authMiddleware, isStaff, createImportTransaction);
+router.post('/export', authMiddleware, isStaff, createExportTransaction);
+router.get('/transactions', authMiddleware, isStaff, getTransactions);
+router.get('/transactions/:id', authMiddleware, isStaff, getTransactionDetail);
+router.put('/transactions/:id/cancel', authMiddleware, isStaff, cancelImportTransaction);
+router.get('/stock', authMiddleware, isStaff, getCurrentStock);
 
 module.exports = router;

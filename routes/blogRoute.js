@@ -1,5 +1,5 @@
 const express = require("express");
-const { isAdmin, authMiddleware } = require("../middleware/authMiddleWare");
+const { isAdmin, authMiddleware, isStaff } = require("../middleware/authMiddleWare");
 
 const {
   createBlog,
@@ -19,18 +19,18 @@ const {
 
 const router = express.Router();
 
-router.post("/", authMiddleware, isAdmin, createBlog);
+router.post("/", authMiddleware, isStaff, createBlog);
 router.put(
   "/upload",
   authMiddleware,
-  isAdmin,
+  isStaff,
   uploadPhoto.array("images", 10),
   blogImgResize,
   uploadImages
 );
 router.put("/likes", authMiddleware, likeBlog);
 router.put("/dislikes", authMiddleware, dislikeBlog);
-router.put("/:id", authMiddleware, isAdmin, updateBlog);
+router.put("/:id", authMiddleware, isStaff, updateBlog);
 router.get("/:id", getBlog);
 router.get("/", getAllBlogs);
 router.delete("/:id", authMiddleware, isAdmin, deleteBlog);
