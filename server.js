@@ -24,6 +24,7 @@ const colorRoute = require("./routes/colorRoute");
 const enquiryRoute = require("./routes/enquiryRoute");
 const supplierRoute = require("./routes/supplierRoute");
 const inventoryRoute = require("./routes/inventoryRoute");
+const statsRoute = require("./routes/statsRoute");
 require("./config/passport");
 
 // Middleware
@@ -68,6 +69,7 @@ app.use("/api/color", colorRoute);
 app.use("/api/enquiry", enquiryRoute);
 app.use("/api/supplier", supplierRoute);
 app.use("/api/inventory", inventoryRoute);
+app.use("/api/stats", statsRoute);
 app.use(notFound);
 app.use(errorHandler);
 
