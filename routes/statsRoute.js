@@ -1,5 +1,5 @@
 const express = require('express');
-const { authMiddleware, isAdminOrStaff } = require('../middleware/auth');
+const { authMiddleware, isStaff } = require('../middleware/authMiddleWare');
 const {
   getOverview,
   getRevenueChart,
@@ -12,7 +12,7 @@ const {
 const router = express.Router();
 
 // Tất cả các route thống kê đều yêu cầu quyền admin hoặc staff
-router.use(authMiddleware, isAdminOrStaff);
+router.use(authMiddleware, isStaff);
 
 router.get('/overview', getOverview);
 router.get('/revenue', getRevenueChart);
