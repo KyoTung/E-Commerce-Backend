@@ -78,56 +78,131 @@ const createImportTransaction = asyncHandler(async (req, res) => {
 });
 
 // Tạo phiếu xuất kho (EXPORT) - dùng cho trả NCC, hủy hàng, điều chỉnh giảm
+// const createExportTransaction = asyncHandler(async (req, res) => {
+//  const { supplier, items, note, exportType } = req.body;
+//   if (!items || items.length === 0) {
+//     return res.status(400).json({ error: 'Danh sách sản phẩm không được trống' });
+//   }
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+//   try {
+//     const processedItems = [];
+//     for (let item of items) {
+//       const { productId, color, storage, quantity } = item;
+//       validateMongoDbId(productId);
+      
+//       const oldQuantity = await getCurrentQuantity(productId, color, storage);
+//       if (oldQuantity < quantity) {
+//         throw new Error(`Sản phẩm ${productId} không đủ hàng để xuất. Tồn: ${oldQuantity}, yêu cầu: ${quantity}`);
+//       }
+//       const newQuantity = oldQuantity - quantity;
+//       processedItems.push({
+//         product: productId,
+//         color,
+//         storage,
+//         quantity,
+//         oldQuantity,
+//         newQuantity
+//       });
+//     }
+
+//     const transaction = await InventoryTransaction.create([{
+//       transactionType: 'EXPORT',
+//       supplier: supplier || null,
+//       items: processedItems,
+//       note,
+//       createdBy: req.user._id,
+//       status: 'completed'
+//     }], { session });
+//     // Cập nhật giảm tồn kho
+//     const bulkOps = processedItems.map(item => ({
+//       updateOne: {
+//         filter: {
+//           _id: item.product,
+//           'variants.color': item.color,
+//           'variants.storage': item.storage
+//         },
+//         update: {
+//           $inc: { 'variants.$.quantity': -item.quantity }
+//         }
+//       }
+//     }));
+//     await Product.bulkWrite(bulkOps, { session });
+//     await session.commitTransaction();
+//     res.status(201).json({ success: true, transaction: transaction[0] });
+//   } catch (error) {
+//     await session.abortTransaction();
+//     res.status(400).json({ error: error.message });
+//   } finally {
+//     session.endSession();
+//   }
+// });
+
 const createExportTransaction = asyncHandler(async (req, res) => {
-  const { supplier, items, note, exportType } = req.body; // exportType có thể là 'return_to_supplier', 'damage', 'internal_use'
+  const { supplier, items, note, exportType } = req.body; // items: { product, color, storage, quantity, price }
   if (!items || items.length === 0) {
     return res.status(400).json({ error: 'Danh sách sản phẩm không được trống' });
   }
+
   const session = await mongoose.startSession();
   session.startTransaction();
+
   try {
+    let totalValue = 0;
     const processedItems = [];
-    for (let item of items) {
-      const { product, color, storage, quantity } = item;
-      validateMongoDbId(product);
+
+    for (const item of items) {
+      // ✅ Sửa: frontend gửi product, không phải productId
+      const { product, color, storage, quantity, price = 0 } = item;
+      validateMongoDbId(product); // dùng product
+
+      // Lấy tồn kho hiện tại
       const oldQuantity = await getCurrentQuantity(product, color, storage);
       if (oldQuantity < quantity) {
-        throw new Error(`Sản phẩm ${product} không đủ hàng để xuất. Tồn: ${oldQuantity}, yêu cầu: ${quantity}`);
+        throw new Error(`Sản phẩm ID ${product} không đủ hàng. Tồn: ${oldQuantity}, yêu cầu: ${quantity}`);
       }
+
       const newQuantity = oldQuantity - quantity;
+      totalValue += price * quantity;
+
       processedItems.push({
-        product,
+        product: product,        // lưu product
         color,
         storage,
         quantity,
+        price,
         oldQuantity,
-        newQuantity
+        newQuantity,
       });
     }
-    const transaction = await InventoryTransaction.create([{
+
+    const [transaction] = await InventoryTransaction.create([{
       transactionType: 'EXPORT',
       supplier: supplier || null,
       items: processedItems,
+      totalValue,
       note,
       createdBy: req.user._id,
-      status: 'completed'
+      status: 'completed',
     }], { session });
-    // Cập nhật giảm tồn kho
+
+    // Cập nhật tồn kho
     const bulkOps = processedItems.map(item => ({
       updateOne: {
         filter: {
           _id: item.product,
           'variants.color': item.color,
-          'variants.storage': item.storage
+          'variants.storage': item.storage,
         },
         update: {
-          $inc: { 'variants.$.quantity': -item.quantity }
-        }
-      }
+          $inc: { 'variants.$.quantity': -item.quantity },
+        },
+      },
     }));
     await Product.bulkWrite(bulkOps, { session });
+
     await session.commitTransaction();
-    res.status(201).json({ success: true, transaction: transaction[0] });
+    res.status(201).json({ success: true, transaction });
   } catch (error) {
     await session.abortTransaction();
     res.status(400).json({ error: error.message });

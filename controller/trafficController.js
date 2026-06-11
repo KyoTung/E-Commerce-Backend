@@ -10,15 +10,15 @@ const recordTraffic = asyncHandler(async (req, res) => {
     startOfDay.setHours(0, 0, 0, 0);
 
     // Kiểm tra xem IP này hôm nay đã vào chưa
-    const existingVisit = await Visit.findOne({
+    const existingTraffic = await Traffic.findOne({
         ip: ip,
         createdAt: { $gte: startOfDay }
     });
 
-    if (!existingVisit) {
+    if (!existingTraffic) {
         // Nếu chưa -> Lưu vào DB
-        await Visit.create({ ip });
-        res.json({ message: "Visit recorded" });
+        await Traffic.create({ ip });
+        res.json({ message: "Traffic recorded" });
     } else {
         // Nếu rồi -> Không làm gì cả
         res.json({ message: "Already recorded today" });
@@ -27,7 +27,7 @@ const recordTraffic = asyncHandler(async (req, res) => {
 
 const getTrafficStats = asyncHandler(async (req, res) => {
     // Đếm tổng số lượt truy cập
-    const totalTraffic = await Visit.countDocuments();
+    const totalTraffic = await Traffic.countDocuments();
     res.json({ totalTraffic });
 });
 
