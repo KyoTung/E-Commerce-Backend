@@ -25,7 +25,8 @@ const enquiryRoute = require("./routes/enquiryRoute");
 const supplierRoute = require("./routes/supplierRoute");
 const inventoryRoute = require("./routes/inventoryRoute");
 const statsRoute = require("./routes/statsRoute");
-const trafficRoute = require("./routes/trafficRoute")
+const trafficRoute = require("./routes/trafficRoute");
+const bannerRoute = require('./routes/bannerRoute');
 require("./config/passport");
 
 // Middleware
@@ -72,6 +73,8 @@ app.use("/api/supplier", supplierRoute);
 app.use("/api/inventory", inventoryRoute);
 app.use("/api/stats", statsRoute);
 app.use("/api/traffic", trafficRoute);
+app.use('/api/banner', bannerRoute);
+
 app.use(notFound);
 app.use(errorHandler);
 
