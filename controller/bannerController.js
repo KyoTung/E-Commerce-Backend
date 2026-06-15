@@ -131,14 +131,9 @@ const getBannersAdmin = asyncHandler(async (req, res) => {
 
 // @desc    Lấy danh sách banner active cho client (theo vị trí)
 // @route   GET /api/banner
-// @access  Public
+
 const getActiveBanners = asyncHandler(async (req, res) => {
-  const now = new Date();
-  const banners = await Banner.find({
-    isActive: true,
-    $or: [{ startDate: { $exists: false } }, { startDate: { $lte: now } }],
-    $or: [{ endDate: { $exists: false } }, { endDate: { $gte: now } }],
-  }).sort({ order: 1 });
+  const banners = await Banner.find().sort({ order: 1 });
   res.json(banners);
 });
 

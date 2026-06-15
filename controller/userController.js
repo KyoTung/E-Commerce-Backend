@@ -293,7 +293,7 @@ const updateInfo = asyncHandler(async (req, res) => {
   validateMongoDbId(id);
   try {
     const updateUser = await User.findByIdAndUpdate(
-      _id,
+      id,
       {
         fullName: req?.body?.fullName,
         address: req?.body?.address,
