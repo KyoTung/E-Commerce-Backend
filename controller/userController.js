@@ -222,11 +222,39 @@ const loginAdmin = asyncHandler(async (req, res) => {
   });
 });
 
-// get all users
 const getAllUsers = asyncHandler(async (req, res) => {
   try {
-    const allUsers = await User.find().sort({ createdAt: -1 });
-    res.json(allUsers);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+
+    let filter = {};
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { mobile: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const users = await User.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select("-password -refreshToken");
+
+    const total = await User.countDocuments(filter);
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
+      users,
+      total,
+      page,
+      limit,
+      totalPages,
+    });
   } catch (error) {
     throw new Error(error);
   }
