@@ -77,67 +77,6 @@ const createImportTransaction = asyncHandler(async (req, res) => {
   }
 });
 
-// Tạo phiếu xuất kho (EXPORT) - dùng cho trả NCC, hủy hàng, điều chỉnh giảm
-// const createExportTransaction = asyncHandler(async (req, res) => {
-//  const { supplier, items, note, exportType } = req.body;
-//   if (!items || items.length === 0) {
-//     return res.status(400).json({ error: 'Danh sách sản phẩm không được trống' });
-//   }
-//   const session = await mongoose.startSession();
-//   session.startTransaction();
-//   try {
-//     const processedItems = [];
-//     for (let item of items) {
-//       const { productId, color, storage, quantity } = item;
-//       validateMongoDbId(productId);
-      
-//       const oldQuantity = await getCurrentQuantity(productId, color, storage);
-//       if (oldQuantity < quantity) {
-//         throw new Error(`Sản phẩm ${productId} không đủ hàng để xuất. Tồn: ${oldQuantity}, yêu cầu: ${quantity}`);
-//       }
-//       const newQuantity = oldQuantity - quantity;
-//       processedItems.push({
-//         product: productId,
-//         color,
-//         storage,
-//         quantity,
-//         oldQuantity,
-//         newQuantity
-//       });
-//     }
-
-//     const transaction = await InventoryTransaction.create([{
-//       transactionType: 'EXPORT',
-//       supplier: supplier || null,
-//       items: processedItems,
-//       note,
-//       createdBy: req.user._id,
-//       status: 'completed'
-//     }], { session });
-//     // Cập nhật giảm tồn kho
-//     const bulkOps = processedItems.map(item => ({
-//       updateOne: {
-//         filter: {
-//           _id: item.product,
-//           'variants.color': item.color,
-//           'variants.storage': item.storage
-//         },
-//         update: {
-//           $inc: { 'variants.$.quantity': -item.quantity }
-//         }
-//       }
-//     }));
-//     await Product.bulkWrite(bulkOps, { session });
-//     await session.commitTransaction();
-//     res.status(201).json({ success: true, transaction: transaction[0] });
-//   } catch (error) {
-//     await session.abortTransaction();
-//     res.status(400).json({ error: error.message });
-//   } finally {
-//     session.endSession();
-//   }
-// });
-
 const createExportTransaction = asyncHandler(async (req, res) => {
   const { supplier, items, note, exportType } = req.body; // items: { product, color, storage, quantity, price }
   if (!items || items.length === 0) {
@@ -152,7 +91,6 @@ const createExportTransaction = asyncHandler(async (req, res) => {
     const processedItems = [];
 
     for (const item of items) {
-      // ✅ Sửa: frontend gửi product, không phải productId
       const { product, color, storage, quantity, price = 0 } = item;
       validateMongoDbId(product); // dùng product
 
@@ -295,9 +233,12 @@ const cancelImportTransaction = asyncHandler(async (req, res) => {
   }
 });
 
-// Lấy tồn kho hiện tại của tất cả biến thể (hỗ trợ lọc)
+// Lấy tồn kho hiện tại của tất cả biến thể (Hỗ trợ lọc + PHÂN TRANG)
 const getCurrentStock = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
   const { search } = req.query;
+
   let filter = {};
   if (search) {
     // Tìm kiếm theo tên sản phẩm
@@ -305,11 +246,15 @@ const getCurrentStock = asyncHandler(async (req, res) => {
     const productIds = products.map(p => p._id);
     filter._id = { $in: productIds };
   }
+
+  // 1. Lấy toàn bộ sản phẩm khớp điều kiện filter
   const products = await Product.find(filter).select('title images variants');
-  const stockData = [];
+  
+  // 2. Gom tất cả các biến thể vào một mảng phẳng
+  const allStockData = [];
   for (let prod of products) {
     for (let variant of prod.variants) {
-      stockData.push({
+      allStockData.push({
         productId: prod._id,
         productTitle: prod.title,
         image: variant.images?.[0]?.url || '',
@@ -321,7 +266,20 @@ const getCurrentStock = asyncHandler(async (req, res) => {
       });
     }
   }
-  res.json(stockData);
+
+  // 3. Thực hiện phân trang trên mảng kết quả
+  const total = allStockData.length;
+  const skip = (page - 1) * limit;
+  const paginatedStockItems = allStockData.slice(skip, skip + limit);
+
+  // 4. Trả về cấu trúc phân trang chuẩn
+  res.json({
+    stockItems: paginatedStockItems,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit)
+  });
 });
 
 module.exports = {
