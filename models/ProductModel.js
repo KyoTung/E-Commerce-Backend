@@ -34,7 +34,7 @@ const productSchema = new mongoose.Schema(
     },
     slugBrand: {
       type: String,
-      required: true,
+      unique: true
     },
     category: {
       type: String,
@@ -42,7 +42,12 @@ const productSchema = new mongoose.Schema(
     },
     slugCategory: {
       type: String,
-      required: true,
+      unique: true
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
     },
 
     variants: [

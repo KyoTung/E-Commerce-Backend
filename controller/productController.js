@@ -130,50 +130,76 @@ const getAllProduct = asyncHandler(async (req, res) => {
   }
 });
 
+
 const getAllProductsAdmin = asyncHandler(async (req, res) => {
   try {
-    // 1. Lấy tham số từ query
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const search = req.query.search || "";
+    const status = req.query.status || ""; 
+    const sort = req.query.sort || "";     
 
-    // 2. Xây dựng filter tìm kiếm (theo tên sản phẩm)
-    let filter = {};
-    if (search) {
-      filter.title = { $regex: search, $options: "i" };
-    }
-
-    // 3. Xử lý các filter khác (nếu có)
-    //    Ví dụ: lọc theo brand, category, giá...
-    if (req.query.brand) filter.brand = req.query.brand;
-    if (req.query.slugCategory) filter.slugCategory = req.query.slugCategory;
-    if (req.query.tags) filter.tags = req.query.tags;
-    if (req.query["basePrice[gte]"]) {
-      filter.basePrice = {
-        ...filter.basePrice,
-        $gte: Number(req.query["basePrice[gte]"]),
-      };
-    }
-    if (req.query["basePrice[lte]"]) {
-      filter.basePrice = {
-        ...filter.basePrice,
-        $lte: Number(req.query["basePrice[lte]"]),
-      };
-    }
-
-    // 4. Đếm tổng số sản phẩm thỏa filter
-    const total = await Product.countDocuments(filter);
-    const totalPages = Math.ceil(total / limit);
     const skip = (page - 1) * limit;
 
-    // 5. Lấy danh sách sản phẩm có phân trang
-    const products = await Product.find(filter)
-      .sort("-createdAt")
-      .skip(skip)
-      .limit(limit)
-      .select("-__v");
+    // Stage 1: Xây dựng bộ lọc tìm kiếm ($match)
+    let matchStage = {};
+    if (search) {
+      matchStage.title = { $regex: search, $options: "i" };
+    }
 
-    // 6. Trả về metadata + dữ liệu
+    // Lọc theo trạng thái đóng/mở kinh doanh
+    if (status === "active") {
+      matchStage.isActive = true;   
+    } else if (status === "inactive") {
+      matchStage.isActive = false;  
+    }
+
+    // Stage 2: Tính tổng kho và tổng đã bán của toàn bộ các biến thể thuộc sản phẩm ($addFields)
+    let addFieldsStage = {
+      // Tính tổng trường quantity của tất cả phần tử trong mảng variants
+      totalQuantity: { $sum: "$variants.quantity" },
+      // Tính tổng trường sold của tất cả phần tử trong mảng variants
+      totalSold: { $sum: "$variants.sold" }
+    };
+
+    // Stage 3: Xác định tiêu chí sắp xếp ($sort)
+    let sortStage = {};
+    if (sort === "price_asc") {
+      sortStage.basePrice = 1;        // Giá cơ bản từ thấp đến cao
+    } else if (sort === "price_desc") {
+      sortStage.basePrice = -1;       // Giá cơ bản từ cao đến thấp
+    } else if (sort === "sold_desc") {
+      sortStage.totalSold = -1;       // Sắp xếp theo tổng hàng ĐÃ BÁN giảm dần (Bán chạy nhất)
+    } else if (sort === "quantity_asc") {
+      sortStage.totalQuantity = 1;    // Sắp xếp theo tổng hàng TỒN KHO tăng dần (Sắp hết hàng)
+    } else if (sort === "quantity_desc") {
+      sortStage.totalQuantity = -1;   // Sắp xếp theo tổng hàng TỒN KHO giảm dần
+    } else {
+      sortStage.createdAt = -1;       // Mặc định: Sản phẩm mới tạo lên đầu
+    }
+
+    // Stage 4: Sử dụng $facet để gom đếm tổng số bản ghi và phân trang dữ liệu trong một câu lệnh duy nhất
+    const aggregationPipeline = [
+      { $match: matchStage },
+      { $addFields: addFieldsStage },
+      { $sort: sortStage },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [{ $skip: skip }, { $limit: limit }, { $project: { __v: 0 } }]
+        }
+      }
+    ];
+
+    // Thực thi câu lệnh Aggregation
+    const result = await Product.aggregate(aggregationPipeline);
+
+    // Bóc tách dữ liệu trả về từ $facet
+    const products = result[0].data || [];
+    const total = result[0].metadata[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+
+    // Trả về dữ liệu chuẩn cấu trúc ban đầu cho Frontend
     res.json({
       products,
       total,
@@ -185,44 +211,121 @@ const getAllProductsAdmin = asyncHandler(async (req, res) => {
   }
 });
 
+// const updateProduct = asyncHandler(async (req, res) => {
+//   const { id } = req.params;
+//   validateMongoDbId(id);
+
+//   try {
+//     const { isActive, ...updateData } = req.body;
+
+//     if (updateData.title) {
+//       updateData.slug = slugify(updateData.title);
+//     }
+
+//     const updatedProduct = await Product.findOneAndUpdate(
+//       { _id: id },
+//       updateData,
+//       {
+//         new: true,
+//       }
+//     );
+
+//     res.json({
+//       message: "Product updated successfully",
+//       product: updatedProduct,
+//       success: true,
+//     });
+//   } catch (error) {
+//     throw new Error(error);
+//   }
+// });
+
 const updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
+
+  const { isActive, ...updateData } = req.body;
+
   try {
-    if (req.body.title) {
-      req.body.slug = slugify(req.body.title);
+    if (updateData.title) {
+      updateData.slug = slugify(updateData.title);
     }
-    const updateProduct = await Product.findOneAndUpdate(
-      { _id: id },
-      req.body,
-      {
-        new: true,
-      },
+
+    if (updateData.category) {
+      updateData.slugCategory = slugify(updateData.category);
+    }
+
+    if (updateData.brand) {
+      updateData.slugBrand = slugify(updateData.brand);
+    }
+
+    if (updateData.variants && Array.isArray(updateData.variants)) {
+      updateData.variants = updateData.variants.map((v) => ({
+        ...v,
+        price: Number(v.price),
+        quantity: Number(v.quantity),
+      }));
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
     );
 
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
     res.json({
-      message: "Product updated successfully",
-      product: updateProduct,
+      message: "Cập nhật sản phẩm thành công",
+      product: updatedProduct,
       success: true,
     });
   } catch (error) {
-    throw new Error(error);
+    res.status(500).json({ message: error.message });
   }
 });
 
+
+// const deleteProduct = asyncHandler(async (req, res) => {
+//   const { id } = req.params;
+//   validateMongoDbId(id);
+//   try {
+//     const deleteProduct = await Product.findOneAndDelete({ _id: id });
+
+//     res.json({
+//       message: "Product deleted successfully",
+//       product: deleteProduct,
+//       success: true,
+//     });
+//   } catch (error) {
+//     throw new Error(error);
+//   }
+// });
+
+// Thay thế hàm deleteProduct cũ trong file productController.js
 const deleteProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
   try {
-    const deleteProduct = await Product.findOneAndDelete({ _id: id });
+    // 1. Tìm sản phẩm hiện tại trong cơ sở dữ liệu
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
+    }
+
+    // 2. Đảo ngược trạng thái hoạt động (Nếu đang bật -> Tắt / Khóa, nếu đang khóa -> Bật lại)
+    product.isActive = !product.isActive;
+    await product.save();
 
     res.json({
-      message: "Product deleted successfully",
-      product: deleteProduct,
+      message: product.isActive ? "Đã mở khóa sản phẩm thành công" : "Đã khóa/ẩn sản phẩm thành công",
+      product,
       success: true,
     });
   } catch (error) {
-    throw new Error(error);
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -333,20 +436,53 @@ const uploadImagesProduct = asyncHandler(async (req, res) => {
   }
 });
 
+// const deleteImagesProduct = asyncHandler(async (req, res) => {
+//   const { id, publicIdToDelete } = req.params;
+//   try {
+//     cloudinaryDeleteImage(publicIdToDelete, "images");
+//     const deleteImage = await Product.updateOne(
+//       { _id: id },
+//       { $pull: { images: { public_id: publicIdToDelete } } },
+//     );
+//     res.json({
+//       message: "Images deleted",
+//       deleteImage,
+//     });
+//   } catch (error) {
+//     throw new Error(error);
+//   }
+// });
+
 const deleteImagesProduct = asyncHandler(async (req, res) => {
-  const { id, publicIdToDelete } = req.params;
+  const { id } = req.params; 
+  const { publicIdToDelete } = req.body; 
+
+  if (!publicIdToDelete) {
+    return res.status(400).json({ message: "Thiếu publicIdToDelete" });
+  }
+
   try {
-    cloudinaryDeleteImage(publicIdToDelete, "images");
-    const deleteImage = await Product.updateOne(
+    // 1. Xóa ảnh trên Cloudinary
+    await cloudinaryDeleteImage(publicIdToDelete, "images");
+
+    // 2. Xóa ảnh trong mảng images tổng của sản phẩm
+    await Product.updateOne(
       { _id: id },
-      { $pull: { images: { public_id: publicIdToDelete } } },
+      { $pull: { images: { public_id: publicIdToDelete } } }
     );
+
+    // 3. Xóa ảnh nằm sâu bên trong mảng images của từng biến thể (variants)
+    await Product.updateOne(
+      { _id: id },
+      { $pull: { "variants.$[].images": { public_id: publicIdToDelete } } }
+    );
+
     res.json({
-      message: "Images deleted",
-      deleteImage,
+      message: "Xóa ảnh thành công",
+      success: true
     });
   } catch (error) {
-    throw new Error(error);
+    res.status(500).json({ message: error.message });
   }
 });
 
