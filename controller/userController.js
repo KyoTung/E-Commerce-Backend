@@ -19,8 +19,14 @@ dotenv.config();
 const createUser = asyncHandler(async (req, res) => {
   const email = req.body.email;
   const phone = req.body?.phone;
+  const role = req.body?.role;
 
   const findUser = await User.findOne({ email: email });
+
+  const userData = {
+    ...req.body,
+    role: "user",
+  };
 
   if (phone) {
     const findMobile = await User.findOne({ phone: phone });
@@ -30,7 +36,7 @@ const createUser = asyncHandler(async (req, res) => {
   }
 
   if (!findUser) {
-    const newUser = await User.create(req.body);
+    const newUser = await User.create(userData);
     res.json({
       message: "User created successfully",
       success: true,
@@ -290,65 +296,114 @@ const getUser = asyncHandler(async (req, res) => {
 const deleteUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
+
   try {
-    const deleteUser = await User.findByIdAndDelete(id);
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      {
+        fullName: "deleted",
+        email: `deleted_${id}@example.com`, // tránh trùng email
+        phone: null,
+        address: "deleted",
+      },
+      { new: true }
+    );
+
     res.json({
-      deleteUser,
-      message: "User deleted successfully",
+      message: "User deleted (soft) successfully",
       success: true,
+      user: updatedUser,
     });
   } catch (error) {
     throw new Error(error);
   }
 });
-
 //update a user
 const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
+
   try {
-    const updateUser = await User.findByIdAndUpdate(
+    const { role, ...data } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
       id,
       {
-        fullName: req?.body?.fullName,
-        address: req?.body?.address,
-        phone: req?.body?.phone,
-        role: req?.body?.role,
+        fullName: data?.fullName,
+        address: data?.address,
+        phone: data?.phone,
       },
       {
         new: true,
       },
     );
+
     res.json({
       message: "User updated successfully",
       success: true,
-      user: updateUser,
+      user: updatedUser,
     });
   } catch (error) {
     throw new Error(error);
   }
 });
 
-// save address user
+// save address, phone user
 const updateInfo = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
+
   try {
-    const updateUser = await User.findByIdAndUpdate(
+    const { role, ...data } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
       id,
       {
-        fullName: req?.body?.fullName,
-        address: req?.body?.address,
-        phone: req?.body?.phone,
+        fullName: data?.fullName,
+        address: data?.address,
+        phone: data?.phone,
       },
       {
         new: true,
       },
     );
+
     res.json({
       message: "Infomation updated successfully",
       success: true,
-      user: updateUser,
+      user: updatedUser,
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const updateRole = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  validateMongoDbId(id);
+
+  const { role } = req.body;
+  const ALLOWED_ROLES = ["user", "staff", "admin"];
+
+  if (!ALLOWED_ROLES.includes(role)) {
+    throw new Error("Invalid role");
+  }
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { role },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      throw new Error("User not found");
+    }
+
+    res.json({
+      message: "User updated successfully",
+      success: true,
+      user: updatedUser,
     });
   } catch (error) {
     throw new Error(error);
@@ -475,4 +530,5 @@ module.exports = {
   getWishList,
   updateInfo,
   loginWithGoogle,
+  updateRole
 };

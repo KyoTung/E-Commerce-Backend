@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { authMiddleware, isAdmin } = require("../middleware/authMiddleWare");
+const { authMiddleware, isAdmin, isStaff } = require("../middleware/authMiddleWare");
 const {
   createUser,
   loginUser,
@@ -19,6 +19,7 @@ const {
   loginAdmin,
   getWishList,
   updateInfo,
+  updateRole,
   loginWithGoogle
 } = require("../controller/userController");
 const passport = require("passport");
@@ -53,12 +54,13 @@ router.post("/logout", logout);
 router.get("/wishlist", authMiddleware, getWishList);
 
 
-router.get("/all-users",authMiddleware, isAdmin, getAllUsers);
+router.get("/all-users",authMiddleware, isStaff, getAllUsers);
 router.get("/:id",authMiddleware,getUser);
 
 router.delete("/:id", authMiddleware,isAdmin, deleteUser);
-router.put("/update-user/:id",authMiddleware,isAdmin, updateUser);
-router.put("/update-informaion/:id", authMiddleware, updateInfo)
+router.put("/update-user/:id",authMiddleware,isStaff, updateUser);
+router.put("/update-role/:id",authMiddleware,isAdmin, updateRole);
+router.put("/update-informaion/:id", authMiddleware, updateInfo);
 
 router.put("/block-user/:id", authMiddleware,isAdmin, blockUser);
 router.put("/unlock-user/:id", authMiddleware, isAdmin, unlockUser);
