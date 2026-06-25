@@ -240,52 +240,7 @@ const getAllProductsAdmin = asyncHandler(async (req, res) => {
 //   }
 // });
 
-const updateProduct = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  validateMongoDbId(id);
 
-  const { isActive, ...updateData } = req.body;
-
-  try {
-    if (updateData.title) {
-      updateData.slug = slugify(updateData.title);
-    }
-
-    if (updateData.category) {
-      updateData.slugCategory = slugify(updateData.category);
-    }
-
-    if (updateData.brand) {
-      updateData.slugBrand = slugify(updateData.brand);
-    }
-
-    if (updateData.variants && Array.isArray(updateData.variants)) {
-      updateData.variants = updateData.variants.map((v) => ({
-        ...v,
-        price: Number(v.price),
-        quantity: Number(v.quantity),
-      }));
-    }
-
-    const updatedProduct = await Product.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedProduct) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    res.json({
-      message: "Cập nhật sản phẩm thành công",
-      product: updatedProduct,
-      success: true,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
 
 
 // const deleteProduct = asyncHandler(async (req, res) => {
@@ -305,6 +260,62 @@ const updateProduct = asyncHandler(async (req, res) => {
 // });
 
 // Thay thế hàm deleteProduct cũ trong file productController.js
+
+const updateProduct = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  validateMongoDbId(id);
+
+  const { isActive, ...updateData } = req.body;
+
+  console.log("🟡 Dữ liệu nhận được từ frontend:", req.body); // Debug
+
+  try {
+    if (updateData.title) {
+      updateData.slug = slugify(updateData.title);
+    }
+
+    if (updateData.category) {
+      updateData.slugCategory = slugify(updateData.category);
+    }
+
+    if (updateData.brand) {
+      updateData.slugBrand = slugify(updateData.brand);
+    }
+
+    // Xử lý variants: đảm bảo price và quantity là số
+    if (updateData.variants && Array.isArray(updateData.variants)) {
+      updateData.variants = updateData.variants.map((v) => ({
+        ...v,
+        price: Number(v.price) || 0,
+        quantity: Number(v.quantity) || 0,
+        // Đảm bảo images là mảng (nếu không có thì để mảng rỗng)
+        images: v.images || [],
+      }));
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    console.log("✅ Sản phẩm đã cập nhật:", updatedProduct); // Debug
+
+    res.json({
+      message: "Cập nhật sản phẩm thành công",
+      product: updatedProduct,
+      success: true,
+    });
+  } catch (error) {
+    console.error("❌ Lỗi cập nhật sản phẩm:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 const deleteProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
