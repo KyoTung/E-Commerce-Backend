@@ -465,6 +465,61 @@ const getNewCustomers = asyncHandler(async (req, res) => {
   res.json(newCustomers);
 });
 
+// statsController.js
+const getProfitStats = asyncHandler(async (req, res) => {
+  const { period = 'all', startDate: customStart, endDate: customEnd } = req.query;
+  const { startDate, endDate } = getDateRange(period, customStart, customEnd);
+
+  const match = {
+    createdAt: { $gte: startDate, $lte: endDate }
+  };
+
+  // Tổng doanh thu (chỉ tính đơn đã thanh toán hoặc COD)
+  const revenueMatch = {
+    ...match,
+    $or: [
+      { paymentStatus: 'paid' },
+      { paymentMethod: 'cod' }
+    ]
+  };
+  const revenueResult = await Order.aggregate([
+    { $match: revenueMatch },
+    { $group: { _id: null, total: { $sum: '$total' } } }
+  ]);
+  const totalRevenue = revenueResult[0]?.total || 0;
+
+  // Tổng giảm giá (tất cả đơn)
+  const discountResult = await Order.aggregate([
+    { $match: match },
+    { $group: { _id: null, total: { $sum: '$discountAmount' } } }
+  ]);
+  const totalDiscount = discountResult[0]?.total || 0;
+
+  // Tổng phí vận chuyển
+  const shippingResult = await Order.aggregate([
+    { $match: match },
+    { $group: { _id: null, total: { $sum: '$shippingFee' } } }
+  ]);
+  const totalShipping = shippingResult[0]?.total || 0;
+
+  // Giá vốn hàng bán (COGS) – tạm thời tính bằng 0
+  // Nếu bạn có dữ liệu giá nhập, có thể tính từ InventoryTransaction
+  // Ví dụ: lấy tổng giá nhập của các sản phẩm đã bán trong kỳ
+  // Hiện tại, tôi để 0 để hiển thị lợi nhuận gộp (chưa trừ giá vốn)
+  const totalCost = 0;
+
+  // Lợi nhuận = Doanh thu - Giảm giá - Phí ship - Giá vốn
+  const profit = totalRevenue - totalDiscount - totalShipping - totalCost;
+
+  res.json({
+    totalRevenue,
+    totalDiscount,
+    totalShipping,
+    totalCost,
+    profit
+  });
+});
+
 module.exports = {
   getOverview,
   getRevenueChart,

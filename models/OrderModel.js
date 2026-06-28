@@ -12,6 +12,15 @@ var orderSchema = new mongoose.Schema(
         color: String,
         storage: String,
         price: Number,
+        imeiOrSerial: {
+          type: String,
+          default: null,
+          trim: true,
+        },
+        variantId: {
+          type: mongoose.Schema.Types.ObjectId,
+          default: null,
+        },
       },
     ],
     paymentIntent: {
