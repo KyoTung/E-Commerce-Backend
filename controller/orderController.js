@@ -463,17 +463,20 @@ const updateStatus = asyncHandler(async (req, res) => {
       }
     }
 
-    //Kiểm tra IMEI trước khi chuyển trạng thái Processing -> Shipped
-    // Nếu chuyển từ Processing sang Shipped
-    if (existingOrder.existingOrderStatus === "Processing" && status === "Shipped") {
+    
+    // Kiểm tra IMEI khi chuyển từ Processing sang Dispatched
+    if (currentStatus === "Processing" && status === "Dispatched") {
       const missingImei = existingOrder.products.filter((p) => !p.imeiOrSerial);
-        if (missingImei.length > 0) {
-          return res.status(400).json({
-            error: "Vui lòng nhập IMEI cho tất cả sản phẩm trước khi giao hàng",
-            missing: missingImei.map((p) => p.product.title),
-          });
-        }
+      if (missingImei.length > 0) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+          error: "Vui lòng nhập IMEI cho tất cả sản phẩm trước khi chuyển sang trạng thái Đang giao hàng",
+          missing: missingImei.map((p) => p.product.title || "Sản phẩm không xác định"),
+        });
+      }
     }
+
 
     // Xử lý hoàn kho khi chuyển sang Cancelled hoặc Returned
     const isTransitioningToReturned =
@@ -845,13 +848,23 @@ const checkCouponCheckout = asyncHandler(async (req, res) => {
 
 // Thêm IMEI khi cập nhật đơn hàng
 const updateImei = asyncHandler(async (req, res) => {
-  const { orderId } = req.params;
+  const { id } = req.params;
   const { imeiList } = req.body; // [{ productIndex, imei }, ...]
 
-  const order = await Order.findById(orderId);
-  if (!order) throw new Error("Order not found");
+  // 1. Kiểm tra dữ liệu đầu vào
+  if (!imeiList || !Array.isArray(imeiList) || imeiList.length === 0) {
+    return res.status(400).json({
+      error: "Danh sách IMEI không hợp lệ",
+    });
+  }
 
-  // Kiểm tra trạng thái cho phép
+  // 2. Tìm đơn hàng và populate product để lấy title
+  const order = await Order.findById(id).populate("products.product");
+  if (!order) {
+    return res.status(404).json({ error: "Không tìm thấy đơn hàng" });
+  }
+
+  // 3. Kiểm tra trạng thái cho phép
   const allowedStatuses = ["Not Processed", "Confirmed", "Processing"];
   if (!allowedStatuses.includes(order.orderStatus)) {
     return res.status(400).json({
@@ -860,22 +873,57 @@ const updateImei = asyncHandler(async (req, res) => {
     });
   }
 
-  // Cập nhật IMEI
+  // 4. Cập nhật IMEI cho từng sản phẩm
+  const errors = [];
   imeiList.forEach(({ productIndex, imei }) => {
-    if (order.products[productIndex]) {
-      order.products[productIndex].imeiOrSerial = imei.trim();
+    // Kiểm tra chỉ số hợp lệ
+    if (typeof productIndex !== "number" || productIndex < 0 || productIndex >= order.products.length) {
+      errors.push(`Sản phẩm thứ ${productIndex} không tồn tại`);
+      return;
     }
+
+    const product = order.products[productIndex];
+    if (!product) {
+      errors.push(`Sản phẩm thứ ${productIndex} không tồn tại`);
+      return;
+    }
+
+    // Kiểm tra IMEI không được để trống (nếu bắt buộc)
+    const trimmedImei = imei?.trim();
+    if (!trimmedImei) {
+      errors.push(`IMEI cho sản phẩm "${product.product?.title || "không xác định"}" không được để trống`);
+      return;
+    }
+
+    // Có thể kiểm tra IMEI trùng lặp (nếu cần)
+    // Ở đây mình giả định mỗi IMEI là duy nhất cho mỗi sản phẩm
+    product.imeiOrSerial = trimmedImei;
   });
 
-  // Kiểm tra xem đã có đủ IMEI chưa (nếu muốn tự động chuyển trạng thái)
-  const allHasImei = order.products.every(p => p.imeiOrSerial !== null);
-  if (allHasImei && order.orderStatus === "Processing") {
-    // Nếu đang ở Processing và đã có đủ IMEI, có thể tự động chuyển sang Dispatched
-    // Tuy nhiên, nên để admin kiểm soát thủ công
+  // Nếu có lỗi validation, trả về lỗi mà không lưu
+  if (errors.length > 0) {
+    return res.status(400).json({
+      error: "Có lỗi xảy ra khi cập nhật IMEI",
+      details: errors,
+    });
   }
 
+  // 5. Lưu đơn hàng
   await order.save();
-  res.json({ success: true, order });
+
+  // 6. Trả về kết quả (có thể trả về danh sách IMEI đã cập nhật)
+  res.json({
+    success: true,
+    message: "Cập nhật IMEI thành công",
+    order: {
+      _id: order._id,
+      products: order.products.map((p) => ({
+        product: p.product?._id,
+        title: p.product?.title,
+        imeiOrSerial: p.imeiOrSerial,
+      })),
+    },
+  });
 });
 
  // Tra cứu bảo hành theo IMEI
