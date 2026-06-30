@@ -31,7 +31,7 @@ const addToCart = asyncHandler(async (req, res) => {
           .json({ message: `Không tìm thấy sản phẩm ID: ${item._id}` });
       }
 
-      // 🔒 KIỂM TRA SẢN PHẨM CÒN KINH DOANH
+      // KIỂM TRA SẢN PHẨM CÒN KINH DOANH
       if (!product.isActive) {
         return res.status(400).json({
           message: `Sản phẩm "${product.title}" đã ngừng kinh doanh, không thể thêm vào giỏ hàng.`,

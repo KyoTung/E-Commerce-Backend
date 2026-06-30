@@ -8,6 +8,7 @@ const asyncHandler = require("express-async-handler");
 const validateMongoDbId = require("../utils/validateMongoDB");
 var uniqid = require("uniqid");
 const mongoose = require("mongoose");
+const { isValidIMEI } = require('../middleware/validators/imeiValidator');
 
 // =========================================================================
 //  TẠO ĐƠN HÀNG - Khách hàng tạo đơn (Có transaction + ghi nhận giao dịch bán hàng)
@@ -895,8 +896,17 @@ const updateImei = asyncHandler(async (req, res) => {
       return;
     }
 
-    // Có thể kiểm tra IMEI trùng lặp (nếu cần)
-    // Ở đây mình giả định mỗi IMEI là duy nhất cho mỗi sản phẩm
+     // Kiểm tra định dạng IMEI
+    if (!isValidIMEI(trimmedImei, false)) {   // false = không kiểm tra Luhn
+     errors.push(`IMEI "${trimmedImei}" không hợp lệ (phải là 14-16 chữ số)`);
+      return;
+    }
+
+
+    // kiểm tra IMEI trùng lặp trong cùng đơn hàng
+    const existing = order.products.some((p, idx) => idx !== productIndex && p.imeiOrSerial === trimmedImei);
+    if (existing) { errors.push(`IMEI "${trimmedImei}" đã được sử dụng trong đơn hàng này`); return; }
+
     product.imeiOrSerial = trimmedImei;
   });
 
@@ -928,11 +938,11 @@ const updateImei = asyncHandler(async (req, res) => {
 
  // Tra cứu bảo hành theo IMEI
 const getOrderByImei = asyncHandler(async (req, res) => {
-  const { imei } = req.params;
-  if (!imei) return res.status(400).json({ error: "Thiếu IMEI" });
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: "Thiếu IMEI" });
 
   const order = await Order.findOne({
-    "products.imeiOrSerial": imei,
+    "products.imeiOrSerial": id,
   }).populate("products.product", "title images");
 
   if (!order) {
@@ -940,11 +950,10 @@ const getOrderByImei = asyncHandler(async (req, res) => {
   }
 
   // Lọc ra sản phẩm cụ thể
-  const product = order.products.find(p => p.imeiOrSerial === imei);
+  const product = order.products.find(p => p.imeiOrSerial === id);
 
   res.json({
     product: product.product,
-    imei: imei,
     orderId: order._id,
     orderDate: order.createdAt,
     customerName: order.customerInfo.name,
