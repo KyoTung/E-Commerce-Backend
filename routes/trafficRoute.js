@@ -2,7 +2,7 @@ const express = require("express");
 const { 
   recordTraffic, 
   getTrafficStats 
-} = require('../controller/TrafficController');
+} = require('../controller/trafficController');
 
 const router = express.Router();
 
