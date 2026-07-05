@@ -1,5 +1,5 @@
 const express = require("express");
-const { isAdmin, authMiddleware } = require("../middleware/authMiddleWare");
+const { isAdmin, authMiddleware, isStaff } = require("../middleware/authMiddleWare");
 
 const router = express.Router();
 const {createBlogcategory, 
@@ -9,8 +9,8 @@ const {createBlogcategory,
     deleteBlogCategory } = require("../controller/blogcateController")
 
 
-router.post("/", authMiddleware, isAdmin, createBlogcategory);
-router.put("/:id",authMiddleware, isAdmin,updateBlogcategory )
+router.post("/", authMiddleware, isStaff, createBlogcategory);
+router.put("/:id",authMiddleware, isStaff,updateBlogcategory )
 router.get("/", getAllBlogCategory)
 router.get("/:id", getBlogCategory)
 router.delete("/:id", authMiddleware, isAdmin, deleteBlogCategory);

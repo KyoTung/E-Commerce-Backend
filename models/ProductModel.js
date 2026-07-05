@@ -34,7 +34,7 @@ const productSchema = new mongoose.Schema(
     },
     slugBrand: {
       type: String,
-      required: true,
+      unique: true
     },
     category: {
       type: String,
@@ -42,7 +42,12 @@ const productSchema = new mongoose.Schema(
     },
     slugCategory: {
       type: String,
-      required: true,
+      unique: true
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
     },
 
     variants: [
@@ -51,11 +56,18 @@ const productSchema = new mongoose.Schema(
         storage: { type: String },
         price: { type: Number },
         quantity: { type: Number },
-        images: [ {
-        url: String,
-        asset_id: String,
-        public_id: String,
-      }],
+        sold: {
+          type: Number,
+          default: 0,
+          select: false,
+        },
+        images: [
+          {
+            url: String,
+            asset_id: String,
+            public_id: String,
+          },
+        ],
       },
     ],
 
@@ -86,20 +98,10 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-
-    sold: {
-      type: Number,
-      default: 0,
-      select: false,
-    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("Product", productSchema);
-
-
-
-      

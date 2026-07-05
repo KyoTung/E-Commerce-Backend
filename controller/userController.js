@@ -19,8 +19,14 @@ dotenv.config();
 const createUser = asyncHandler(async (req, res) => {
   const email = req.body.email;
   const phone = req.body?.phone;
+  const role = req.body?.role;
 
   const findUser = await User.findOne({ email: email });
+
+  const userData = {
+    ...req.body,
+    role: "user",
+  };
 
   if (phone) {
     const findMobile = await User.findOne({ phone: phone });
@@ -30,7 +36,7 @@ const createUser = asyncHandler(async (req, res) => {
   }
 
   if (!findUser) {
-    const newUser = await User.create(req.body);
+    const newUser = await User.create(userData);
     res.json({
       message: "User created successfully",
       success: true,
@@ -45,13 +51,14 @@ const createUser = asyncHandler(async (req, res) => {
 
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  //secure: process.env.NODE_ENV === "production", // Chỉ gửi qua HTTPS khi deploy, để dev có thể dùng HTTP
+  secure: false,
   sameSite: "lax",
   path: "/",
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 
-// login user
+// login
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -68,15 +75,23 @@ const loginUser = asyncHandler(async (req, res) => {
   user.refreshToken = refreshToken;
   await user.save();
 
+  // Cấu hình Cookie bảo mật cao chống XSS và CSRF
+  const cookieOptions = {
+    httpOnly: true, // Mã JavaScript không thể đọc được cookie này
+    secure: process.env.NODE_ENV === "production", // Chỉ gửi qua HTTPS khi deploy
+    sameSite: "strict",
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 ngày khớp với thời gian sống của JWT
+  };
+
   res.cookie("refreshToken", refreshToken, cookieOptions);
 
+  // Trả về Access Token trong JSON body (FE sẽ lưu cái này vào Redux RAM)
   return res.json({
     _id: user._id,
     fullName: user.fullName,
     email: user.email,
     role: user.role,
-    token: accessToken,
-    refreshToken: refreshToken,
+    accessToken: accessToken,
   });
 });
 
@@ -103,11 +118,10 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
   res.redirect(
     `${process.env.CLIENT_URL}/login-success?` +
       `token=${accessToken}` + // Access Token
-      `&refreshToken=${refreshToken}` + // Refresh Token
       `&id=${currentUser._id}` +
       `&role=${currentUser.role}` +
       `&email=${currentUser.email}` +
-      `&name=${encodeURIComponent(currentUser.fullName)}`
+      `&name=${encodeURIComponent(currentUser.fullName)}`,
   );
 });
 
@@ -115,7 +129,7 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
 const handleRefreshToken = asyncHandler(async (req, res) => {
   const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
 
-  if (!refreshToken) return res.status(401).json({ message: "Vui lòng đăng nhập" });
+  if (!rt) return res.status(401).json({ message: "Vui lòng đăng nhập" });
 
   try {
     // Verify token
@@ -124,7 +138,7 @@ const handleRefreshToken = asyncHandler(async (req, res) => {
     const user = await User.findById(decoded.id || decoded.sub);
 
     // Phát hiện token bị dùng lại hoặc user không khớp
-    if (!user || user.refreshToken !== refreshToken) {
+    if (!user || user.refreshToken !== rt) {
       // if (user) {
       //   user.refreshToken = null;
       //   await user.save();
@@ -216,11 +230,54 @@ const loginAdmin = asyncHandler(async (req, res) => {
   });
 });
 
-// get all users
 const getAllUsers = asyncHandler(async (req, res) => {
   try {
-    const allUsers = await User.find().sort({ createdAt: -1 });
-    res.json(allUsers);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+    const role = req.query.role || "";
+    const status = req.query.status || "";
+
+    let filter = {};
+
+    // XỬ LÝ NGHIỆP VỤ LỌC ĐÓNG / MỞ TÀI KHOẢN
+    if (status === "active") {
+      filter.isBlock = false; // Mặc định: Chỉ lấy những user bình thường (không bị khóa)
+    } else if (status === "blocked") {
+      filter.isBlock = true; // Chỉ lấy những user đang bị đóng (bị khóa)
+    }
+    // Nếu status === "all" hoặc không truyền thì filter.isBlock không được gán -> Lấy tất cả
+
+    if (role && role !== "all") {
+      filter.role = role;
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { mobile: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const users = await User.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select("-password -refreshToken");
+
+    const total = await User.countDocuments(filter);
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
+      users,
+      total,
+      page,
+      limit,
+      totalPages,
+    });
   } catch (error) {
     throw new Error(error);
   }
@@ -242,65 +299,114 @@ const getUser = asyncHandler(async (req, res) => {
 const deleteUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
+
   try {
-    const deleteUser = await User.findByIdAndDelete(id);
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      {
+        fullName: "deleted",
+        email: `deleted_${id}@example.com`, // tránh trùng email
+        phone: null,
+        address: "deleted",
+      },
+      { new: true }
+    );
+
     res.json({
-      deleteUser,
-      message: "User deleted successfully",
+      message: "User deleted (soft) successfully",
       success: true,
+      user: updatedUser,
     });
   } catch (error) {
     throw new Error(error);
   }
 });
-
 //update a user
 const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
+
   try {
-    const updateUser = await User.findByIdAndUpdate(
+    const { role, ...data } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
       id,
       {
-        fullName: req?.body?.fullName,
-        address: req?.body?.address,
-        phone: req?.body?.phone,
-        role: req?.body?.role,
+        fullName: data?.fullName,
+        address: data?.address,
+        phone: data?.phone,
       },
       {
         new: true,
-      }
+      },
     );
+
     res.json({
       message: "User updated successfully",
       success: true,
-      user: updateUser,
+      user: updatedUser,
     });
   } catch (error) {
     throw new Error(error);
   }
 });
 
-// save address user
+// save address, phone user
 const updateInfo = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongoDbId(id);
+
   try {
-    const updateUser = await User.findByIdAndUpdate(
-      _id,
+    const { role, ...data } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
       {
-        fullName: req?.body?.fullName,
-        address: req?.body?.address,
-        phone: req?.body?.phone,
+        fullName: data?.fullName,
+        address: data?.address,
+        phone: data?.phone,
       },
       {
         new: true,
-      }
+      },
     );
+
     res.json({
       message: "Infomation updated successfully",
       success: true,
-      user: updateUser,
+      user: updatedUser,
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const updateRole = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  validateMongoDbId(id);
+
+  const { role } = req.body;
+  const ALLOWED_ROLES = ["user", "staff", "admin"];
+
+  if (!ALLOWED_ROLES.includes(role)) {
+    throw new Error("Invalid role");
+  }
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { role },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      throw new Error("User not found");
+    }
+
+    res.json({
+      message: "User updated successfully",
+      success: true,
+      user: updatedUser,
     });
   } catch (error) {
     throw new Error(error);
@@ -314,7 +420,7 @@ const blockUser = asyncHandler(async (req, res) => {
     const block = await User.findByIdAndUpdate(
       id,
       { isBlock: true },
-      { new: true }
+      { new: true },
     );
     res.json({
       data: block,
@@ -332,7 +438,7 @@ const unlockUser = asyncHandler(async (req, res) => {
     const unlock = await User.findByIdAndUpdate(
       id,
       { isBlock: false },
-      { new: true }
+      { new: true },
     );
     res.json({
       data: unlock,
@@ -427,4 +533,5 @@ module.exports = {
   getWishList,
   updateInfo,
   loginWithGoogle,
+  updateRole
 };

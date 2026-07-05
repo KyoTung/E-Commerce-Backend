@@ -22,7 +22,11 @@ const orderRoute = require("./routes/orderRoute");
 const cartRoute = require("./routes/cartRoute");
 const colorRoute = require("./routes/colorRoute");
 const enquiryRoute = require("./routes/enquiryRoute");
+const supplierRoute = require("./routes/supplierRoute");
+const inventoryRoute = require("./routes/inventoryRoute");
+const statsRoute = require("./routes/statsRoute");
 const trafficRoute = require("./routes/trafficRoute");
+const bannerRoute = require('./routes/bannerRoute');
 require("./config/passport");
 
 
@@ -70,7 +74,11 @@ app.use("/api/cart", cartRoute);
 app.use("/api/order", orderRoute);
 app.use("/api/color", colorRoute);
 app.use("/api/enquiry", enquiryRoute);
+app.use("/api/supplier", supplierRoute);
+app.use("/api/inventory", inventoryRoute);
+app.use("/api/stats", statsRoute);
 app.use("/api/traffic", trafficRoute);
+app.use('/api/banner', bannerRoute);
 
 // Middleware xử lý lỗi
 app.use(notFound);

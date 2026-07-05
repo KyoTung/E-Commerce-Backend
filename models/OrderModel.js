@@ -11,13 +11,24 @@ var orderSchema = new mongoose.Schema(
         storage: String,
         count: Number,
         color: String,
+        storage: String,
         price: Number,
+        imeiOrSerial: {
+          type: String,
+          default: null,
+          trim: true,
+        },
+        variantId: {
+          type: mongoose.Schema.Types.ObjectId,
+          default: null,
+        },
       },
     ],
     paymentIntent: {
       id: String,
       method: String,
       amount: Number,
+      
       currency: {
         type: String,
         default: "VND",
@@ -59,11 +70,25 @@ var orderSchema = new mongoose.Schema(
       required: true,
     },
 
+    // --- CÁC TRƯỜNG THÊM MỚI ---
+    couponApplied: {
+      type: Boolean,
+      default: false,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+    },
+    shippingFee: {
+      type: Number,
+      default: 0,
+    },
+    // ---------------------------
+
     trackingNumber: {
       type: String,
       default: null,
     },
-    // Thông tin người nhận hàng (nếu đặt hộ)
     customerInfo: {
       name: { type: String, required: true },
       address: { type: String, required: true },
@@ -75,5 +100,4 @@ var orderSchema = new mongoose.Schema(
   }
 );
 
-//Export the model
 module.exports = mongoose.model("Order", orderSchema);

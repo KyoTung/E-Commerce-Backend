@@ -13,7 +13,6 @@ const {
 
 
 router.post("/", authMiddleware, addToCart);
-router.post("/apply-coupon", authMiddleware, applyCoupon);
 router.get("/", authMiddleware, getUserCart);
 router.put("/", authMiddleware, updateCartItem)
 router.delete("/",authMiddleware, deleteCart)

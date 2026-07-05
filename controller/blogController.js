@@ -1,5 +1,6 @@
 const Blog = require("../models/BlogModel");
 const User = require("../models/UserModel");
+const BlogCategory = require("../models/BlogCateModel");
 const asyncHandler = require("express-async-handler");
 const validateMongoDbId = require("../utils/validateMongoDB");
 const {cloudinaryUploadImage,cloudinaryDeleteImage} = require("../utils/cloudinary");
@@ -32,10 +33,119 @@ const updateBlog = asyncHandler(async (req, res) => {
   }
 });
 
+// const getAllBlogs = asyncHandler(async (req, res) => {
+//   try {
+//     const { category, limit = 10, page = 1, search } = req.query;
+
+//     let filter = {};
+
+//     // Lọc theo danh mục (category là string title)
+//     if (category) {
+//       let foundCategory = null;
+//       // Nếu category là ObjectId
+//       if (category.match(/^[0-9a-fA-F]{24}$/)) {
+//         foundCategory = await BlogCategory.findById(category);
+//       }
+//       if (!foundCategory) {
+//         foundCategory = await BlogCategory.findOne({ slug: category });
+//       }
+//       if (!foundCategory) {
+//         foundCategory = await BlogCategory.findOne({ title: category });
+//       }
+//       if (foundCategory) {
+//         // SỬA: gán bằng title của category (vì Blog.category là string)
+//         filter.category = foundCategory.title;
+//       } else {
+//         // Không tìm thấy category -> trả về mảng rỗng
+//         return res.json({
+//           blogs: [],
+//           total: 0,
+//           page: 1,
+//           limit: 10,
+//           totalPages: 0,
+//         });
+//       }
+//     }
+
+//     // Tìm kiếm theo tiêu đề (nếu có)
+//     if (search) {
+//       filter.title = { $regex: search, $options: "i" };
+//     }
+
+//     const limitNum = parseInt(limit);
+//     const pageNum = parseInt(page);
+//     const skip = (pageNum - 1) * limitNum;
+
+//     const total = await Blog.countDocuments(filter);
+
+//     // Lấy danh sách bài viết (bỏ populate vì category không phải ObjectId)
+//     const blogs = await Blog.find(filter)
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limitNum)
+//       .exec();
+
+//     res.json({
+//       blogs,
+//       total,
+//       page: pageNum,
+//       limit: limitNum,
+//       totalPages: Math.ceil(total / limitNum),
+//     });
+//   } catch (error) {
+//     throw new Error(error);
+//   }
+// });
+
 const getAllBlogs = asyncHandler(async (req, res) => {
   try {
-    const allBlogs = await Blog.find().sort({ createdAt: -1 });
-    res.json(allBlogs);
+    const { category, limit = 10, page = 1, search } = req.query;
+
+    let filter = {};
+
+    // 1. Lọc theo danh mục
+    if (category) {
+      let foundCategory = null;
+      if (category.match(/^[0-9a-fA-F]{24}$/)) {
+        foundCategory = await BlogCategory.findById(category);
+      }
+      if (!foundCategory) foundCategory = await BlogCategory.findOne({ slug: category });
+      if (!foundCategory) foundCategory = await BlogCategory.findOne({ title: category });
+      
+      if (foundCategory) {
+        filter.category = foundCategory.title; 
+      } else {
+        return res.json({ blogs: [], total: 0, page: 1, limit: 10, totalPages: 0 });
+      }
+    }
+
+    // 2. TỐI ƯU LOGIC TÌM KIẾM (Tìm trên cả Tiêu đề và Mô tả)
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    // 3. Phân trang & Query CSDL
+    const limitNum = parseInt(limit);
+    const pageNum = parseInt(page);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await Blog.countDocuments(filter);
+    const blogs = await Blog.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .exec();
+
+    res.json({
+      blogs,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+    });
   } catch (error) {
     throw new Error(error);
   }

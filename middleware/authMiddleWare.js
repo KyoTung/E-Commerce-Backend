@@ -7,13 +7,13 @@ const User = require('../models/UserModel');
 const authMiddleware = asyncHandler(async (req, res, next) => {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
-  if (!token) return res.status(401).json({ message: 'Unauthorized: missing token' });
+  if (!token) return res.status(401).json({ message: 'Unauthorized: Chưa đăng nhập' });
 
   try {
     const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET); // verify AT
     const user = await User.findById(payload.sub).select('_id email role fullName isBlock').lean();
-    if (!user) return res.status(401).json({ message: 'Unauthorized: user not found' });
-    if (user.isBlock) return res.status(403).json({ message: 'Forbidden: user blocked' });
+    if (!user) return res.status(401).json({ message: 'Unauthorized: Tài khoản không tồn tại' });
+    if (user.isBlock) return res.status(403).json({ message: 'Forbidden: Tài khoản đã bị khóa' });
 
     req.user = user; // set minimal user info
     next();
@@ -24,9 +24,17 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
 
 const isAdmin = asyncHandler(async (req, res, next) => {
   if (req.user?.role !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden: admin only' });
+    return res.status(403).json({ message: 'Forbidden: Chỉ admin mới có quyền thao tác này' });
   }
   next();
 });
 
-module.exports = { authMiddleware, isAdmin };
+const isStaff = asyncHandler(async (req, res, next) => {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'staff' ) {
+    return res.status(403).json({ message: 'Forbidden: Chỉ nhân viên hoặc admin mới có quyền thao tác này' });
+  }
+  next();
+});
+
+
+module.exports = { authMiddleware, isAdmin, isStaff };

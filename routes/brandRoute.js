@@ -1,5 +1,5 @@
 const express = require("express");
-const { isAdmin, authMiddleware } = require("../middleware/authMiddleWare");
+const { isAdmin, isStaff, authMiddleware } = require("../middleware/authMiddleWare");
 
 const router = express.Router();
 const {createBrand, 
@@ -9,8 +9,8 @@ const {createBrand,
     deleteBrand } = require("../controller/brandController")
 
 
-router.post("/", authMiddleware, isAdmin, createBrand);
-router.put("/:id",authMiddleware, isAdmin,updateBrand )
+router.post("/", authMiddleware, isStaff, createBrand);
+router.put("/:id",authMiddleware, isStaff, updateBrand )
 router.get("/", getAllBrand)
 router.get("/:id", getBrand)
 router.delete("/:id", authMiddleware, isAdmin, deleteBrand);
