@@ -80,7 +80,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const cookieOptions = {
     httpOnly: true, // Mã JavaScript không thể đọc được cookie này
     secure: process.env.NODE_ENV === "production", // Chỉ gửi qua HTTPS khi deploy
-    sameSite: "strict",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 ngày khớp với thời gian sống của JWT
   };
 
