@@ -51,8 +51,8 @@ const createUser = asyncHandler(async (req, res) => {
 
 const cookieOptions = {
   httpOnly: true,
-  //secure: process.env.NODE_ENV === "production", // Chỉ gửi qua HTTPS khi deploy, để dev có thể dùng HTTP
-  secure: false,
+  secure: process.env.NODE_ENV === "production", // Chỉ gửi qua HTTPS khi deploy, để dev có thể dùng HTTP
+  // secure: false,
   sameSite: "lax",
   path: "/",
   maxAge: 30 * 24 * 60 * 60 * 1000,
