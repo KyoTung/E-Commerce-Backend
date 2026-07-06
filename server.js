@@ -42,7 +42,8 @@ app.use(passport.initialize());
 app.use(
   cors({
     origin: [
-    "http://localhost:3000",                           
+    "http://localhost:3000",      
+    "https://nest-store-commerce.vercel.app",                     
     `${process.env.CLIENT_URL}` 
   ],      
     credentials: true,            
