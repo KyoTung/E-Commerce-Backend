@@ -130,7 +130,7 @@ const loginWithGoogle = asyncHandler(async (req, res) => {
 const handleRefreshToken = asyncHandler(async (req, res) => {
   const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
 
-  if (!rt) return res.status(401).json({ message: "Vui lòng đăng nhập" });
+  if (!refreshToken) return res.status(401).json({ message: "Vui lòng đăng nhập" });
 
   try {
     // Verify token
@@ -139,7 +139,7 @@ const handleRefreshToken = asyncHandler(async (req, res) => {
     const user = await User.findById(decoded.id || decoded.sub);
 
     // Phát hiện token bị dùng lại hoặc user không khớp
-    if (!user || user.refreshToken !== rt) {
+    if (!user || user.refreshToken !== refreshToken) {
       // if (user) {
       //   user.refreshToken = null;
       //   await user.save();
