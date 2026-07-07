@@ -1,5 +1,5 @@
 const express = require('express');
-const { authMiddleware, isAdmin } = require('../middleware/authMiddleWare');
+const { authMiddleware, isStaff, isStaff } = require('../middleware/authMiddleWare');
 const { uploadPhoto } = require('../middleware/uploadImage'); // chỉ multer, không sharp
 const {
   createBanner,
@@ -17,11 +17,11 @@ const router = express.Router();
 router.get('/', getActiveBanners);
 
 // Admin routes
-router.get('/admin', authMiddleware, isAdmin, getBannersAdmin);
-router.post('/', authMiddleware, isAdmin, createBanner);
-router.put('/:id', authMiddleware, isAdmin, updateBanner);
-router.delete('/:id', authMiddleware, isAdmin, deleteBanner);
-router.put('/upload-image/:id', authMiddleware, isAdmin, uploadPhoto.single('image'), uploadBannerImage);
-router.delete('/delete-image/:id', authMiddleware, isAdmin, deleteBannerImage);
+router.get('/admin', authMiddleware, isStaff, getBannersAdmin);
+router.post('/', authMiddleware, isStaff, createBanner);
+router.put('/:id', authMiddleware, isStaff, updateBanner);
+router.delete('/:id', authMiddleware, isStaff, deleteBanner);
+router.put('/upload-image/:id', authMiddleware, isStaff, uploadPhoto.single('image'), uploadBannerImage);
+router.delete('/delete-image/:id', authMiddleware, isStaff, deleteBannerImage);
 
 module.exports = router;
