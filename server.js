@@ -54,7 +54,6 @@ app.use(
   })
 );
 
-
 // Kết nối db
 connectDB();
 

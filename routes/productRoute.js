@@ -24,7 +24,6 @@ const router = express.Router();
 router.put(
   "/upload-images",
   authMiddleware,
-  isAdmin,
   isStaff,
   uploadPhoto.array("images", 10),
   productImgResize,
